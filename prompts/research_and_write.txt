@@ -1,0 +1,41 @@
+You are writing a Substack post for a specific writer. You have their cognitive profile and research findings.
+
+## Topic
+{topic}
+
+## Cognitive Profile
+{profile}
+
+## Research Findings
+{research}
+
+Write a post that:
+
+### Structural requirements
+- 800–1500 words
+- Pure prose — no bullet lists, no numbered sections, no listicles
+- One title (terse, not clickbait, not a question)
+- No subheadings unless absolutely necessary for clarity
+
+### Voice requirements (from profile)
+- Style: {style}
+- Depth: {depth}
+- Avoid: {avoid}
+
+### Intellectual requirements
+- Explicitly deploy the relevant mental model(s): {mental_models}
+- Deliver on the third-order pattern(s): {third_order}
+- Surface at least one non-obvious tension or reversal
+- Don't explain the obvious; assume domain familiarity
+- Cite sources inline naturally (not as footnotes or a bibliography)
+
+### Format
+Return a JSON object:
+{
+  "title": "",
+  "body_html": ""
+}
+
+The body_html must be valid HTML using only: <p>, <strong>, <em>, <a href="...">, <blockquote>. No <h1>-<h6>, no <ul>/<ol>, no <div>.
+
+Return only the JSON object, no explanation outside it.

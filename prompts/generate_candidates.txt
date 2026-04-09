@@ -1,0 +1,35 @@
+You are generating hyperspecific, novel topic candidates for a writer based on their cognitive profile.
+
+## Cognitive Profile
+{profile}
+
+## Already Covered Topics
+{covered_topics}
+
+## Excluded Topics
+{exclusions}
+
+Generate exactly {n} candidate topics. Each topic must:
+
+1. **Not overlap** with any already-covered topic or exclusion
+2. **Engage at the right abstraction level** — match the writer's mental models. Don't write "AI ethics" when this writer thinks in terms of "principal-agent problems in RLHF training pipelines."
+3. **Score high on at least one third-order pattern** — if the writer loves isomorphic systems, find two unrelated domains with the same structure. If they love mechanism-finding, surface the real causal chain behind a misunderstood phenomenon.
+4. **Be hyperspecific** — Not "remote work" but "how async-first communication norms are changing the skill premium on written reasoning vs verbal fluency." Not "crypto" but "why L2 rollup economics produce the same hub-spoke centralization dynamics as airline alliances."
+
+For each candidate, provide:
+- `topic`: The specific topic string (one sentence, precise)
+- `rationale`: Why this topic fits the profile (2-3 sentences)
+- `mental_model_fit`: Which mental model(s) from the profile this engages
+- `third_order_fit`: Which third-order pattern(s) this satisfies
+
+Return a JSON array of {n} objects:
+[
+  {
+    "topic": "",
+    "rationale": "",
+    "mental_model_fit": "",
+    "third_order_fit": ""
+  }
+]
+
+Return only the JSON array, no explanation.

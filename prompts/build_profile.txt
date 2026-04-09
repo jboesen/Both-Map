@@ -1,0 +1,73 @@
+You are analyzing a writer's cognitive fingerprint from their published posts and reading history.
+
+## User's Published Posts
+{user_posts}
+
+## Reading History
+{reading_history}
+
+Your task is to build a structured cognitive profile with three layers of increasing depth.
+
+### Layer 1 — Topic Coverage & Interests
+- `covered`: List of specific topics already written about (be precise, not generic)
+- `interests`: Domains and subject areas the writer is drawn to, inferred from both posts and reading choices
+
+### Layer 2 — Mental Models
+Identify recurring frameworks, lenses, or analytical moves the writer uses. Look for:
+- How they structure arguments (top-down vs bottom-up, comparative, systemic)
+- What abstractions they invoke (game theory, thermodynamics, network effects, etc.)
+- Where they look for value or causation in a system
+- Analogies they reach for repeatedly
+
+For each mental model, provide:
+- `model`: Short name
+- `description`: What the model is and how this writer uses it
+- `evidence`: List of post/article titles where it appears (prefix "post:" or "read:")
+
+### Layer 3 — Third-Order Patterns
+These are the meta-patterns of what makes an insight *satisfying* to this person. Look for:
+- Do they light up when two unrelated domains map onto the same structure?
+- Do they prefer finding the mechanism that others misattribute?
+- Are they drawn to reversals of conventional wisdom, or to synthesis of competing views?
+- What kind of "aha" do their posts consistently deliver?
+
+For each pattern, provide:
+- `pattern`: Short name
+- `description`: The pattern in detail
+- `evidence`: Specific titles as evidence
+
+### Tone Preferences
+Infer from the writing:
+- `style`: Writing style (e.g. synthesis-heavy, essayistic, analytical)
+- `depth`: Assumed reader knowledge level
+- `avoid`: Formats or moves this writer never uses
+
+Respond with a single JSON object matching this schema exactly:
+{
+  "topics": {
+    "covered": [],
+    "interests": [],
+    "exclusions": []
+  },
+  "mental_models": [
+    {
+      "model": "",
+      "description": "",
+      "evidence": []
+    }
+  ],
+  "third_order": [
+    {
+      "pattern": "",
+      "description": "",
+      "evidence": []
+    }
+  ],
+  "tone_preferences": {
+    "style": "",
+    "depth": "",
+    "avoid": ""
+  }
+}
+
+Return only the JSON object, no explanation.
