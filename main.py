@@ -11,6 +11,8 @@ load_dotenv()
 
 from pipeline import run_pipeline
 from services.profile_service import (
+    build_profile_from_history,
+    enrich_profile_from_perplexity,
     load_profile,
     mark_topic_rejected,
     merge_profile_update,
@@ -47,9 +49,28 @@ app = FastAPI(title="Substack Autopilot", lifespan=lifespan)
 # ── Request / Response models ─────────────────────────────────────────────────
 
 
+class UserInfo(BaseModel):
+    """
+    Optional public/demographic info used to research the user via Perplexity
+    and extract cognitive signals for the profile.
+    All fields are optional — provide whatever is available.
+    """
+    name: str | None = None
+    title: str | None = None
+    company: str | None = None
+    twitter: str | None = None
+    linkedin: str | None = None
+    academic_background: str | None = None
+    other_urls: list[str] | None = None
+
+
 class OnboardRequest(BaseModel):
     substack_url: str
     session_cookie: str
+    # Optional: if provided, Perplexity will research the user and enrich the
+    # cognitive profile with inferred mental models. Raw research is never
+    # passed to the article generator.
+    user_info: UserInfo | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -72,11 +93,14 @@ class PublishRequest(BaseModel):
 @app.post("/onboard")
 def onboard(req: OnboardRequest):
     """
-    Scrapes user posts + reading history, builds cognitive profile,
-    and embeds everything into ChromaDB.
+    Full onboarding flow:
+      1. Scrape user posts + reading history
+      2. Build cognitive profile from writing/reading (Claude)
+      3. Embed everything into ChromaDB
+      4. If user_info provided: Perplexity researches the user publicly,
+         Claude extracts cognitive signals, merges into profile.
+         Raw research is discarded — only extracted mental models are kept.
     """
-    from services.profile_service import build_profile_from_history
-
     user_posts = scrape_user_posts(req.substack_url)
     reading_history = scrape_reading_history(req.session_cookie)
 
@@ -85,6 +109,37 @@ def onboard(req: OnboardRequest):
     embed_posts(user_posts)
     embed_reading_history(reading_history)
 
+    perplexity_ran = False
+    if req.user_info:
+        try:
+            from services.perplexity_service import research_user
+            user_info_dict = req.user_info.model_dump(exclude_none=True)
+            # Add substack_url so Perplexity can find their writing
+            user_info_dict.setdefault("substack_url", req.substack_url)
+            synthesis = research_user(user_info_dict)
+            profile = enrich_profile_from_perplexity(synthesis)
+            perplexity_ran = True
+        except EnvironmentError:
+            logger.warning("PERPLEXITY_API_KEY not set — skipping user research enrichment")
+        except Exception:
+            logger.exception("Perplexity enrichment failed — profile still saved from writing analysis")
+
+    return {"profile": profile, "perplexity_enrichment_ran": perplexity_ran}
+
+
+@app.post("/enrich-profile")
+def enrich_profile(user_info: UserInfo):
+    """
+    Standalone endpoint: research the user via Perplexity and enrich the
+    cognitive profile with inferred mental models.
+    Can be called independently after initial onboarding.
+    Raw research is never stored — only extracted cognitive signals are merged.
+    """
+    from services.perplexity_service import research_user
+
+    user_info_dict = user_info.model_dump(exclude_none=True)
+    synthesis = research_user(user_info_dict)
+    profile = enrich_profile_from_perplexity(synthesis)
     return {"profile": profile}
 
 
