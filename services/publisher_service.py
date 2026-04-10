@@ -4,17 +4,23 @@ import time
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 
-def publish_post(title: str, body_html: str) -> str:
+def publish_post(
+    title: str,
+    body_html: str,
+    substack_url: str | None = None,
+    email: str | None = None,
+    password: str | None = None,
+) -> str:
     """
     Publishes a post to Substack via Playwright.
     Returns the published post URL.
 
-    Requires env vars:
-      SUBSTACK_URL, SUBSTACK_EMAIL, SUBSTACK_PASSWORD
+    Credentials can be passed directly (multi-user) or fall back to env vars
+    (single-user / legacy).
     """
-    substack_url = os.environ["SUBSTACK_URL"].rstrip("/")
-    email = os.environ["SUBSTACK_EMAIL"]
-    password = os.environ["SUBSTACK_PASSWORD"]
+    substack_url = (substack_url or os.environ["SUBSTACK_URL"]).rstrip("/")
+    email = email or os.environ["SUBSTACK_EMAIL"]
+    password = password or os.environ["SUBSTACK_PASSWORD"]
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)

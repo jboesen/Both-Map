@@ -112,15 +112,6 @@ def synthesize(script: str) -> bytes:
     return response.content
 
 
-def save_audio(mp3_bytes: bytes, title: str) -> Path:
-    """Saves MP3 to data/audio/<slug>.mp3 and returns the path."""
-    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-    slug = _slugify(title)
-    path = AUDIO_DIR / f"{slug}.mp3"
-    path.write_bytes(mp3_bytes)
-    return path
-
-
 def audio_embed_html(public_url: str) -> str:
     """Returns an HTML audio player snippet for embedding in post body."""
     return (
@@ -131,29 +122,28 @@ def audio_embed_html(public_url: str) -> str:
     )
 
 
-def generate_audio_overview(title: str, body_html: str) -> dict:
+def generate_audio_overview(user_id: str, title: str, body_html: str) -> dict:
     """
-    Full pipeline: script → TTS → save.
+    Full pipeline: script → TTS → upload to Supabase Storage.
 
     Returns:
       {
-        "script": str,           — the narration text
-        "audio_path": str,       — local file path
-        "public_url": str|None,  — set if AUDIO_PUBLIC_BASE_URL is configured
-        "embed_html": str|None,  — <audio> tag ready to prepend to post body
+        "script": str,          — the narration text
+        "public_url": str,      — Supabase Storage public URL
+        "embed_html": str,      — <audio> tag ready to prepend to post body
       }
     """
+    from services.db_service import upload_audio
+
     script = generate_script(title, body_html)
     mp3_bytes = synthesize(script)
-    audio_path = save_audio(mp3_bytes, title)
 
-    public_base = os.environ.get("AUDIO_PUBLIC_BASE_URL", "").rstrip("/")
-    public_url = f"{public_base}/{audio_path.name}" if public_base else None
-    embed_html = audio_embed_html(public_url) if public_url else None
+    filename = f"{_slugify(title)}.mp3"
+    public_url = upload_audio(user_id, filename, mp3_bytes)
+    embed_html = audio_embed_html(public_url)
 
     return {
         "script": script,
-        "audio_path": str(audio_path),
         "public_url": public_url,
         "embed_html": embed_html,
     }

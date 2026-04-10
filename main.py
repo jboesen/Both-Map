@@ -4,19 +4,26 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 load_dotenv()
 
-from pipeline import run_pipeline
+from pipeline import run_pipeline, run_pipeline_all_users
+from services.db_service import (
+    get_client,
+    get_run_history,
+    get_user_settings,
+    load_profile,
+    save_profile,
+    update_user_settings,
+)
+from services.history_ingest_service import ingest
 from services.profile_service import (
     build_profile_from_history,
     enrich_profile_from_perplexity,
-    load_profile,
-    mark_topic_rejected,
     merge_profile_update,
-    save_profile,
     update_profile_from_feedback,
 )
 from services.research_service import research_and_write
@@ -28,6 +35,26 @@ from services.vector_store import embed_posts, embed_reading_history
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+_bearer = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(_bearer),
+) -> str:
+    """
+    Verifies the Supabase JWT and returns the user_id.
+    The frontend passes the token from supabase.auth.getSession().
+    """
+    token = credentials.credentials
+    try:
+        result = get_client().auth.get_user(token)
+        return result.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
 # ── Cron scheduler ────────────────────────────────────────────────────────────
 
 scheduler = BackgroundScheduler()
@@ -36,25 +63,19 @@ scheduler = BackgroundScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     hours = int(os.getenv("CRON_SCHEDULE_HOURS", "24"))
-    scheduler.add_job(run_pipeline, "interval", hours=hours, id="autopilot")
+    scheduler.add_job(run_pipeline_all_users, "interval", hours=hours, id="autopilot")
     scheduler.start()
-    logger.info(f"Cron scheduler started (every {hours}h)")
+    logger.info(f"Cron scheduler started (every {hours}h, all users)")
     yield
     scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="Substack Autopilot", lifespan=lifespan)
 
-
-# ── Request / Response models ─────────────────────────────────────────────────
+# ── Request models ────────────────────────────────────────────────────────────
 
 
 class UserInfo(BaseModel):
-    """
-    Optional public/demographic info used to research the user via Perplexity
-    and extract cognitive signals for the profile.
-    All fields are optional — provide whatever is available.
-    """
     name: str | None = None
     title: str | None = None
     company: str | None = None
@@ -67,9 +88,8 @@ class UserInfo(BaseModel):
 class OnboardRequest(BaseModel):
     substack_url: str
     session_cookie: str
-    # Optional: if provided, Perplexity will research the user and enrich the
-    # cognitive profile with inferred mental models. Raw research is never
-    # passed to the article generator.
+    substack_email: str | None = None
+    substack_password: str | None = None
     user_info: UserInfo | None = None
 
 
@@ -80,18 +100,7 @@ class FeedbackRequest(BaseModel):
 
 class IngestRequest(BaseModel):
     content: str
-    # Optional format hint. Supported values:
-    #   "claude"   — Claude.ai conversation history (JSON or copy-pasted text)
-    #   "pocket"   — Pocket CSV export
-    #   "kindle"   — Kindle highlights CSV or My Clippings text
-    #   "browser"  — Browser bookmarks HTML (Chrome / Firefox / Safari)
-    #   "youtube"  — Google Takeout watch-history.json
-    #   "opml"     — OPML RSS/podcast subscription list
-    #   "twitter"  — Twitter/X bookmarks JSON or copy-pasted threads
-    #   "raw"      — Freeform text: URLs, titles, notes — anything
-    # Omit (null) to let Claude auto-detect.
     format: str | None = None
-    # Set False to skip cognitive signal extraction and only embed items.
     extract_signals: bool = True
 
 
@@ -99,12 +108,12 @@ class GenerateRequest(BaseModel):
     topic: str
 
 
-class PublishRequest(BaseModel):
+class AudioRequest(BaseModel):
     title: str
     body_html: str
 
 
-class AudioRequest(BaseModel):
+class PublishRequest(BaseModel):
     title: str
     body_html: str
 
@@ -113,75 +122,58 @@ class AudioRequest(BaseModel):
 
 
 @app.post("/onboard")
-def onboard(req: OnboardRequest):
+def onboard(req: OnboardRequest, user_id: str = Depends(get_current_user)):
     """
-    Full onboarding flow:
-      1. Scrape user posts + reading history
-      2. Build cognitive profile from writing/reading (Claude)
-      3. Embed everything into ChromaDB
-      4. If user_info provided: Perplexity researches the user publicly,
-         Claude extracts cognitive signals, merges into profile.
-         Raw research is discarded — only extracted mental models are kept.
+    Full onboarding: scrape posts + reading history, build cognitive profile,
+    embed into vector store, optionally enrich via Perplexity.
+    Saves Substack credentials to the user's profile row.
     """
+    # Save Substack settings
+    update_user_settings(
+        user_id,
+        substack_url=req.substack_url,
+        substack_email=req.substack_email,
+        substack_password=req.substack_password,
+    )
+
     user_posts = scrape_user_posts(req.substack_url)
     reading_history = scrape_reading_history(req.session_cookie)
 
-    profile = build_profile_from_history(user_posts, reading_history)
-
-    embed_posts(user_posts)
-    embed_reading_history(reading_history)
+    profile = build_profile_from_history(user_id, user_posts, reading_history)
+    embed_posts(user_id, user_posts)
+    embed_reading_history(user_id, reading_history)
 
     perplexity_ran = False
     if req.user_info:
         try:
             from services.perplexity_service import research_user
             user_info_dict = req.user_info.model_dump(exclude_none=True)
-            # Add substack_url so Perplexity can find their writing
             user_info_dict.setdefault("substack_url", req.substack_url)
             synthesis = research_user(user_info_dict)
-            profile = enrich_profile_from_perplexity(synthesis)
+            profile = enrich_profile_from_perplexity(user_id, synthesis)
             perplexity_ran = True
         except EnvironmentError:
-            logger.warning("PERPLEXITY_API_KEY not set — skipping user research enrichment")
+            logger.warning("PERPLEXITY_API_KEY not set — skipping enrichment")
         except Exception:
-            logger.exception("Perplexity enrichment failed — profile still saved from writing analysis")
+            logger.exception("Perplexity enrichment failed")
 
+    update_user_settings(user_id, onboarded=True)
     return {"profile": profile, "perplexity_enrichment_ran": perplexity_ran}
 
 
 @app.post("/enrich-profile")
-def enrich_profile(user_info: UserInfo):
-    """
-    Standalone endpoint: research the user via Perplexity and enrich the
-    cognitive profile with inferred mental models.
-    Can be called independently after initial onboarding.
-    Raw research is never stored — only extracted cognitive signals are merged.
-    """
+def enrich_profile(user_info: UserInfo, user_id: str = Depends(get_current_user)):
     from services.perplexity_service import research_user
-
     user_info_dict = user_info.model_dump(exclude_none=True)
     synthesis = research_user(user_info_dict)
-    profile = enrich_profile_from_perplexity(synthesis)
+    profile = enrich_profile_from_perplexity(user_id, synthesis)
     return {"profile": profile}
 
 
 @app.post("/ingest")
-def ingest_history(req: IngestRequest):
-    """
-    Ingest any consumption history — Claude conversations, Pocket exports,
-    Kindle highlights, browser bookmarks, YouTube history, OPML files,
-    or plain text — and use it to enrich the cognitive profile.
-
-    Claude parses the raw content into structured items (embedded into
-    ChromaDB for topic gap detection) and extracts cognitive signals
-    (mental models, third-order patterns, interests) from the consumption
-    pattern, which are merged into cognitive_profile.json.
-
-    Raw content is never stored.
-    """
-    from services.history_ingest_service import ingest
-
+def ingest_history(req: IngestRequest, user_id: str = Depends(get_current_user)):
     result = ingest(
+        user_id=user_id,
         raw_content=req.content,
         format_hint=req.format,
         extract_signals=req.extract_signals,
@@ -189,81 +181,77 @@ def ingest_history(req: IngestRequest):
     return result
 
 
+@app.post("/feedback")
+def feedback(req: FeedbackRequest, user_id: str = Depends(get_current_user)):
+    updated = update_profile_from_feedback(user_id, req.transcript, req.post_topic)
+    changes = ""
+    if updated.get("feedback_history"):
+        changes = updated["feedback_history"][-1].get("changes_summary", "")
+    return {"changes": changes, "updated_profile": updated}
+
+
 @app.get("/profile")
-def get_profile():
-    return load_profile()
+def get_profile(user_id: str = Depends(get_current_user)):
+    return load_profile(user_id)
 
 
 @app.put("/profile")
-def put_profile(partial: dict):
-    """Merge a partial profile update and save."""
-    existing = load_profile()
+def put_profile(partial: dict, user_id: str = Depends(get_current_user)):
+    existing = load_profile(user_id)
     updated = merge_profile_update(existing, partial)
-    save_profile(updated)
+    save_profile(user_id, updated)
     return updated
 
 
-@app.post("/feedback")
-def feedback(req: FeedbackRequest):
-    updated_profile = update_profile_from_feedback(req.transcript, req.post_topic)
-    # Return the changes_summary from the last feedback_history entry
-    changes = ""
-    if updated_profile.get("feedback_history"):
-        changes = updated_profile["feedback_history"][-1].get("changes_summary", "")
-    return {"changes": changes, "updated_profile": updated_profile}
-
-
 @app.get("/topics")
-def topics(refresh: bool = False):
-    """
-    Returns top 5 ranked topic candidates.
-    Pass ?refresh=true to regenerate (otherwise returns cached if available).
-    """
-    profile = load_profile()
-    selection = select_topic(profile)
+def topics(user_id: str = Depends(get_current_user)):
+    profile = load_profile(user_id)
+    selection = select_topic(user_id, profile)
     return {"candidates": selection["ranked"], "top": selection["top"]}
 
 
 @app.post("/generate")
-def generate(req: GenerateRequest):
-    profile = load_profile()
-    result = research_and_write(req.topic, profile)
-    return result
+def generate(req: GenerateRequest, user_id: str = Depends(get_current_user)):
+    profile = load_profile(user_id)
+    return research_and_write(req.topic, profile)
 
 
 @app.post("/audio")
-def audio(req: AudioRequest):
-    """
-    Generate an audio overview for a post.
-    Claude writes a narration script; ElevenLabs voices it.
-    Returns script text, local audio path, and public URL + embed HTML
-    if AUDIO_PUBLIC_BASE_URL is configured.
-
-    Requires ELEVENLABS_API_KEY to be set.
-    """
+def audio(req: AudioRequest, user_id: str = Depends(get_current_user)):
     from services.audio_service import generate_audio_overview
     try:
-        result = generate_audio_overview(req.title, req.body_html)
+        return generate_audio_overview(user_id, req.title, req.body_html)
     except EnvironmentError as exc:
         raise HTTPException(status_code=501, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-    return result
 
 
 @app.post("/publish")
-def publish(req: PublishRequest):
+def publish(req: PublishRequest, user_id: str = Depends(get_current_user)):
+    settings = get_user_settings(user_id)
     try:
-        url = publish_post(req.title, req.body_html)
+        url = publish_post(
+            title=req.title,
+            body_html=req.body_html,
+            substack_url=settings.get("substack_url"),
+            email=settings.get("substack_email"),
+            password=settings.get("substack_password"),
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     return {"url": url}
 
 
 @app.post("/run")
-def run():
-    """Manually trigger the full pipeline (same as cron job)."""
-    log_entry = run_pipeline()
+def run(user_id: str = Depends(get_current_user)):
+    log_entry = run_pipeline(user_id)
     if log_entry["status"] == "error":
         raise HTTPException(status_code=500, detail=log_entry.get("error"))
     return log_entry
+
+
+@app.get("/runs")
+def runs(user_id: str = Depends(get_current_user), limit: int = 20):
+    """Returns recent pipeline run history for the current user."""
+    return get_run_history(user_id, limit=limit)

@@ -106,6 +106,7 @@ def parse_and_extract(
 
 
 def ingest(
+    user_id: str,
     raw_content: str,
     format_hint: str | None = None,
     extract_signals: bool = True,
@@ -113,19 +114,18 @@ def ingest(
     """
     Full ingest pipeline:
       1. Parse raw content → structured items + cognitive signals
-      2. Embed items into ChromaDB
+      2. Embed items into ChromaDB (user-namespaced)
       3. If extract_signals=True, merge cognitive signals into profile
 
     Returns summary of what was ingested and what changed in the profile.
     """
     from services.vector_store import embed_reading_history
-    from services.profile_service import load_profile, save_profile
+    from services.db_service import load_profile, save_profile
 
     parsed = parse_and_extract(raw_content, format_hint)
     items = parsed.get("items", [])
     signals = parsed.get("cognitive_signals", {})
 
-    # Normalize items to match embed_reading_history schema
     reading_items = [
         {
             "title": item.get("title", ""),
@@ -136,13 +136,13 @@ def ingest(
         for item in items
     ]
 
-    embed_reading_history(reading_items)
+    embed_reading_history(user_id, reading_items)
 
     profile_changes: dict = {}
     if extract_signals and signals:
-        profile = load_profile()
+        profile = load_profile(user_id)
         profile_changes = _merge_signals_into_profile(profile, signals)
-        save_profile(profile)
+        save_profile(user_id, profile)
 
     return {
         "items_parsed": len(items),

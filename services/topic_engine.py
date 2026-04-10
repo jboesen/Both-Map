@@ -50,7 +50,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     return candidates
 
 
-def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
+def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") -> list[dict]:
     """
     Ranks candidates using MMR (Maximal Marginal Relevance):
       MMR = λ * relevance - (1-λ) * max_similarity_to_already_selected
@@ -83,7 +83,7 @@ def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
 
     # Step 2: Get novelty scores from vector store
     topic_strings = [c["topic"] for c in candidates]
-    gap_results = get_coverage_gaps(topic_strings)
+    gap_results = get_coverage_gaps(user_id, topic_strings)
     gap_map = {g["topic"]: g["distance"] for g in gap_results}
 
     # Step 3: Build combined relevance (relevance * novelty_boost)
@@ -127,17 +127,13 @@ def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
     return selected
 
 
-def select_topic(profile: dict | None = None) -> dict:
+def select_topic(user_id: str, profile: dict) -> dict:
     """
     Generates candidates, ranks them, and returns the top-ranked topic.
-    Also returns the full ranked list for /topics endpoint.
     Returns {top: candidate_dict, ranked: [candidate_dict, ...]}
     """
-    if profile is None:
-        profile = load_profile()
-
     candidates = generate_candidates(profile, n=20)
-    ranked = rank_candidates(candidates, profile)
+    ranked = rank_candidates(candidates, profile, user_id=user_id)
     return {"top": ranked[0] if ranked else None, "ranked": ranked}
 
 
