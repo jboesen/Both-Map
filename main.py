@@ -78,6 +78,23 @@ class FeedbackRequest(BaseModel):
     post_topic: str | None = None
 
 
+class IngestRequest(BaseModel):
+    content: str
+    # Optional format hint. Supported values:
+    #   "claude"   — Claude.ai conversation history (JSON or copy-pasted text)
+    #   "pocket"   — Pocket CSV export
+    #   "kindle"   — Kindle highlights CSV or My Clippings text
+    #   "browser"  — Browser bookmarks HTML (Chrome / Firefox / Safari)
+    #   "youtube"  — Google Takeout watch-history.json
+    #   "opml"     — OPML RSS/podcast subscription list
+    #   "twitter"  — Twitter/X bookmarks JSON or copy-pasted threads
+    #   "raw"      — Freeform text: URLs, titles, notes — anything
+    # Omit (null) to let Claude auto-detect.
+    format: str | None = None
+    # Set False to skip cognitive signal extraction and only embed items.
+    extract_signals: bool = True
+
+
 class GenerateRequest(BaseModel):
     topic: str
 
@@ -141,6 +158,30 @@ def enrich_profile(user_info: UserInfo):
     synthesis = research_user(user_info_dict)
     profile = enrich_profile_from_perplexity(synthesis)
     return {"profile": profile}
+
+
+@app.post("/ingest")
+def ingest_history(req: IngestRequest):
+    """
+    Ingest any consumption history — Claude conversations, Pocket exports,
+    Kindle highlights, browser bookmarks, YouTube history, OPML files,
+    or plain text — and use it to enrich the cognitive profile.
+
+    Claude parses the raw content into structured items (embedded into
+    ChromaDB for topic gap detection) and extracts cognitive signals
+    (mental models, third-order patterns, interests) from the consumption
+    pattern, which are merged into cognitive_profile.json.
+
+    Raw content is never stored.
+    """
+    from services.history_ingest_service import ingest
+
+    result = ingest(
+        raw_content=req.content,
+        format_hint=req.format,
+        extract_signals=req.extract_signals,
+    )
+    return result
 
 
 @app.get("/profile")
