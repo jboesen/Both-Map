@@ -1,13 +1,25 @@
 import json
+import os
 import re
 
 import anthropic
-import numpy as np
 
 from services.profile_service import load_profile
 from services.vector_store import get_coverage_gaps
 
 PROMPTS_DIR_PATH = "prompts"
+
+
+def _anthropic_client() -> anthropic.Anthropic:
+    kwargs = {}
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return anthropic.Anthropic(**kwargs)
+
+
+def _model() -> str:
+    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 LAMBDA = 0.6  # MMR tuning: higher = more relevance, lower = more diversity
 
 
@@ -29,7 +41,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     Uses Claude to generate n candidate topics based on the cognitive profile.
     Returns list of {topic, rationale, mental_model_fit, third_order_fit}.
     """
-    client = anthropic.Anthropic()
+    client = _anthropic_client()
 
     prompt_template = _load_prompt("generate_candidates.txt")
     prompt = (
@@ -40,7 +52,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     )
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=_model(),
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -50,7 +62,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     return candidates
 
 
-def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
+def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") -> list[dict]:
     """
     Ranks candidates using MMR (Maximal Marginal Relevance):
       MMR = λ * relevance - (1-λ) * max_similarity_to_already_selected
@@ -60,7 +72,7 @@ def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
     if not candidates:
         return []
 
-    client = anthropic.Anthropic()
+    client = _anthropic_client()
 
     # Step 1: Get Claude relevance scores
     prompt_template = _load_prompt("rank_candidates.txt")
@@ -72,7 +84,7 @@ def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
     ).replace("{candidates}", candidates_text)
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=_model(),
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -83,7 +95,7 @@ def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
 
     # Step 2: Get novelty scores from vector store
     topic_strings = [c["topic"] for c in candidates]
-    gap_results = get_coverage_gaps(topic_strings)
+    gap_results = get_coverage_gaps(user_id, topic_strings)
     gap_map = {g["topic"]: g["distance"] for g in gap_results}
 
     # Step 3: Build combined relevance (relevance * novelty_boost)
@@ -127,17 +139,13 @@ def rank_candidates(candidates: list[dict], profile: dict) -> list[dict]:
     return selected
 
 
-def select_topic(profile: dict | None = None) -> dict:
+def select_topic(user_id: str, profile: dict) -> dict:
     """
     Generates candidates, ranks them, and returns the top-ranked topic.
-    Also returns the full ranked list for /topics endpoint.
     Returns {top: candidate_dict, ranked: [candidate_dict, ...]}
     """
-    if profile is None:
-        profile = load_profile()
-
     candidates = generate_candidates(profile, n=20)
-    ranked = rank_candidates(candidates, profile)
+    ranked = rank_candidates(candidates, profile, user_id=user_id)
     return {"top": ranked[0] if ranked else None, "ranked": ranked}
 
 

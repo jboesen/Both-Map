@@ -25,12 +25,25 @@ Supported format hints (all optional — Claude auto-detects if omitted):
 """
 
 import json
+import os
 import re
 from pathlib import Path
 
 import anthropic
 
 PROMPTS_DIR = Path("prompts")
+
+
+def _anthropic_client() -> anthropic.Anthropic:
+    kwargs = {}
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return anthropic.Anthropic(**kwargs)
+
+
+def _model() -> str:
+    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 FORMAT_DESCRIPTIONS = {
     "claude": "Claude.ai conversation history — JSON export or copy-pasted conversation text",
@@ -82,7 +95,7 @@ def parse_and_extract(
         }
       }
     """
-    client = anthropic.Anthropic()
+    client = _anthropic_client()
 
     # Truncate very large pastes to avoid hitting context limits.
     # 80k chars ≈ ~20k tokens, well within claude-sonnet-4's context.
@@ -96,7 +109,7 @@ def parse_and_extract(
     ).replace("{raw_content}", content_to_send)
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=_model(),
         max_tokens=8096,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -106,6 +119,7 @@ def parse_and_extract(
 
 
 def ingest(
+    user_id: str,
     raw_content: str,
     format_hint: str | None = None,
     extract_signals: bool = True,
@@ -113,19 +127,18 @@ def ingest(
     """
     Full ingest pipeline:
       1. Parse raw content → structured items + cognitive signals
-      2. Embed items into ChromaDB
+      2. Embed items into ChromaDB (user-namespaced)
       3. If extract_signals=True, merge cognitive signals into profile
 
     Returns summary of what was ingested and what changed in the profile.
     """
     from services.vector_store import embed_reading_history
-    from services.profile_service import load_profile, save_profile
+    from services.db_service import load_profile, save_profile
 
     parsed = parse_and_extract(raw_content, format_hint)
     items = parsed.get("items", [])
     signals = parsed.get("cognitive_signals", {})
 
-    # Normalize items to match embed_reading_history schema
     reading_items = [
         {
             "title": item.get("title", ""),
@@ -136,13 +149,13 @@ def ingest(
         for item in items
     ]
 
-    embed_reading_history(reading_items)
+    embed_reading_history(user_id, reading_items)
 
     profile_changes: dict = {}
     if extract_signals and signals:
-        profile = load_profile()
+        profile = load_profile(user_id)
         profile_changes = _merge_signals_into_profile(profile, signals)
-        save_profile(profile)
+        save_profile(user_id, profile)
 
     return {
         "items_parsed": len(items),
