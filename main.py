@@ -104,6 +104,11 @@ class PublishRequest(BaseModel):
     body_html: str
 
 
+class AudioRequest(BaseModel):
+    title: str
+    body_html: str
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -223,6 +228,26 @@ def topics(refresh: bool = False):
 def generate(req: GenerateRequest):
     profile = load_profile()
     result = research_and_write(req.topic, profile)
+    return result
+
+
+@app.post("/audio")
+def audio(req: AudioRequest):
+    """
+    Generate an audio overview for a post.
+    Claude writes a narration script; ElevenLabs voices it.
+    Returns script text, local audio path, and public URL + embed HTML
+    if AUDIO_PUBLIC_BASE_URL is configured.
+
+    Requires ELEVENLABS_API_KEY to be set.
+    """
+    from services.audio_service import generate_audio_overview
+    try:
+        result = generate_audio_overview(req.title, req.body_html)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     return result
 
 
