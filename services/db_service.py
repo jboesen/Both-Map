@@ -1,104 +1,91 @@
-"""
-Supabase wrapper — replaces all file-based profile I/O.
-
-Uses the service role key (bypasses RLS) so the backend can act on
-behalf of any user. The frontend uses the anon key + user JWT directly.
-"""
-
 import os
-from datetime import datetime, timezone
 from functools import lru_cache
 
 from supabase import create_client, Client
+
+FIXED_PROFILE_ID = "00000000-0000-0000-0000-000000000001"
 
 
 @lru_cache(maxsize=1)
 def get_client() -> Client:
     url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    key = os.environ["SUPABASE_SERVICE_KEY"]
     return create_client(url, key)
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────
 
-def load_profile(user_id: str) -> dict:
-    """Returns the cognitive_profile JSONB for a user. Creates row if missing."""
-    client = get_client()
+def load_profile(user_id: str = FIXED_PROFILE_ID) -> dict:
     result = (
-        client.table("profiles")
-        .select("cognitive_profile")
-        .eq("id", user_id)
+        get_client()
+        .table("cognitive_profiles")
+        .select("profile")
+        .eq("id", FIXED_PROFILE_ID)
         .maybe_single()
         .execute()
     )
     if result.data is None:
-        # First time — create the row
-        _ensure_profile_row(user_id)
         return _default_profile()
-    return result.data["cognitive_profile"]
+    return result.data["profile"]
 
 
 def save_profile(user_id: str, profile: dict) -> None:
+    from datetime import datetime, timezone
     profile["last_updated"] = datetime.now(timezone.utc).isoformat()
-    client = get_client()
-    client.table("profiles").upsert(
-        {"id": user_id, "cognitive_profile": profile, "updated_at": profile["last_updated"]}
+    get_client().table("cognitive_profiles").upsert(
+        {"id": FIXED_PROFILE_ID, "profile": profile, "updated_at": profile["last_updated"]}
     ).execute()
 
 
 def get_user_settings(user_id: str) -> dict:
-    """Returns substack_url, cron_schedule_hours, onboarded."""
-    client = get_client()
     result = (
-        client.table("profiles")
-        .select("substack_url, substack_email, substack_password, cron_schedule_hours, onboarded")
-        .eq("id", user_id)
+        get_client()
+        .table("cognitive_profiles")
+        .select("profile")
+        .eq("id", FIXED_PROFILE_ID)
         .maybe_single()
         .execute()
     )
-    return result.data or {}
+    if not result.data:
+        return {}
+    p = result.data["profile"]
+    return {
+        "substack_url": p.get("substack_url", ""),
+        "substack_email": p.get("substack_email", ""),
+        "substack_password": p.get("substack_password", ""),
+        "cron_schedule_hours": p.get("cron_schedule_hours", 24),
+        "onboarded": p.get("onboarded", False),
+    }
 
 
 def update_user_settings(user_id: str, **kwargs) -> None:
-    """Update any top-level profile columns (substack_url, onboarded, etc.)."""
-    client = get_client()
-    client.table("profiles").upsert({"id": user_id, **kwargs}).execute()
+    profile = load_profile(user_id)
+    profile.update(kwargs)
+    save_profile(user_id, profile)
 
 
 def list_onboarded_users() -> list[str]:
-    """Returns user_ids of all users who have completed onboarding. Used by cron."""
-    client = get_client()
     result = (
-        client.table("profiles")
+        get_client()
+        .table("cognitive_profiles")
         .select("id")
-        .eq("onboarded", True)
+        .eq("id", FIXED_PROFILE_ID)
         .execute()
     )
     return [row["id"] for row in (result.data or [])]
 
 
-# ── Pipeline runs ─────────────────────────────────────────────────────────────
+# ── Pipeline logs ─────────────────────────────────────────────────────────────
 
 def log_run(user_id: str, run: dict) -> None:
-    client = get_client()
-    client.table("pipeline_runs").insert(
-        {
-            "user_id": user_id,
-            "topic": run.get("topic"),
-            "post_url": run.get("post_url"),
-            "audio_url": run.get("audio_url"),
-            "status": run.get("status", "error"),
-            "error": run.get("error"),
-        }
-    ).execute()
+    get_client().table("pipeline_logs").insert({"log_entry": run}).execute()
 
 
 def get_run_history(user_id: str, limit: int = 20) -> list[dict]:
-    client = get_client()
     result = (
-        client.table("pipeline_runs")
-        .select("*")
-        .eq("user_id", user_id)
+        get_client()
+        .table("pipeline_logs")
+        .select("id, log_entry, created_at")
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
@@ -109,29 +96,16 @@ def get_run_history(user_id: str, limit: int = 20) -> list[dict]:
 # ── Audio storage ─────────────────────────────────────────────────────────────
 
 def upload_audio(user_id: str, filename: str, mp3_bytes: bytes) -> str:
-    """
-    Uploads an MP3 to Supabase Storage under audio/{user_id}/{filename}.
-    Returns the public URL.
-    """
-    client = get_client()
-    path = f"{user_id}/{filename}"
-    client.storage.from_("audio").upload(
+    path = f"{filename}"
+    get_client().storage.from_("audio").upload(
         path=path,
         file=mp3_bytes,
         file_options={"content-type": "audio/mpeg", "upsert": "true"},
     )
-    url_response = client.storage.from_("audio").get_public_url(path)
-    return url_response
+    return get_client().storage.from_("audio").get_public_url(path)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _ensure_profile_row(user_id: str) -> None:
-    client = get_client()
-    client.table("profiles").upsert(
-        {"id": user_id, "cognitive_profile": _default_profile()}
-    ).execute()
-
 
 def _default_profile() -> dict:
     return {

@@ -1,10 +1,9 @@
 import logging
 import os
-from contextlib import asynccontextmanager
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -35,44 +34,19 @@ from services.vector_store import embed_posts, embed_reading_history
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ── App ───────────────────────────────────────────────────────────────────────
+
+app = FastAPI(title="Substack Autopilot")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
-
-_bearer = HTTPBearer()
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(_bearer),
-) -> str:
-    """
-    Verifies the Supabase JWT and returns the user_id.
-    The frontend passes the token from supabase.auth.getSession().
-    """
-    token = credentials.credentials
-    try:
-        result = get_client().auth.get_user(token)
-        return result.user.id
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-
-# ── Cron scheduler ────────────────────────────────────────────────────────────
-
-scheduler = BackgroundScheduler()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    hours = int(os.getenv("CRON_SCHEDULE_HOURS", "24"))
-    scheduler.add_job(run_pipeline_all_users, "interval", hours=hours, id="autopilot")
-    scheduler.start()
-    logger.info(f"Cron scheduler started (every {hours}h, all users)")
-    yield
-    scheduler.shutdown(wait=False)
-
-
-app = FastAPI(title="Substack Autopilot", lifespan=lifespan)
-
-# ── Request models ────────────────────────────────────────────────────────────
 
 
 class UserInfo(BaseModel):

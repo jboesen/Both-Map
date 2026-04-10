@@ -25,12 +25,25 @@ Supported format hints (all optional — Claude auto-detects if omitted):
 """
 
 import json
+import os
 import re
 from pathlib import Path
 
 import anthropic
 
 PROMPTS_DIR = Path("prompts")
+
+
+def _anthropic_client() -> anthropic.Anthropic:
+    kwargs = {}
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return anthropic.Anthropic(**kwargs)
+
+
+def _model() -> str:
+    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 FORMAT_DESCRIPTIONS = {
     "claude": "Claude.ai conversation history — JSON export or copy-pasted conversation text",
@@ -82,7 +95,7 @@ def parse_and_extract(
         }
       }
     """
-    client = anthropic.Anthropic()
+    client = _anthropic_client()
 
     # Truncate very large pastes to avoid hitting context limits.
     # 80k chars ≈ ~20k tokens, well within claude-sonnet-4's context.
@@ -96,7 +109,7 @@ def parse_and_extract(
     ).replace("{raw_content}", content_to_send)
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=_model(),
         max_tokens=8096,
         messages=[{"role": "user", "content": prompt}],
     )

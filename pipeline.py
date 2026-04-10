@@ -5,7 +5,7 @@ from services.db_service import (
     get_user_settings,
     list_onboarded_users,
     load_profile,
-    log_run,
+    log_run,   # logs to pipeline_logs table in Supabase
 )
 from services.profile_service import mark_topic_published
 from services.publisher_service import publish_post

@@ -1,13 +1,25 @@
 import json
+import os
 import re
 
 import anthropic
-import numpy as np
 
 from services.profile_service import load_profile
 from services.vector_store import get_coverage_gaps
 
 PROMPTS_DIR_PATH = "prompts"
+
+
+def _anthropic_client() -> anthropic.Anthropic:
+    kwargs = {}
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return anthropic.Anthropic(**kwargs)
+
+
+def _model() -> str:
+    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 LAMBDA = 0.6  # MMR tuning: higher = more relevance, lower = more diversity
 
 
@@ -29,7 +41,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     Uses Claude to generate n candidate topics based on the cognitive profile.
     Returns list of {topic, rationale, mental_model_fit, third_order_fit}.
     """
-    client = anthropic.Anthropic()
+    client = _anthropic_client()
 
     prompt_template = _load_prompt("generate_candidates.txt")
     prompt = (
@@ -40,7 +52,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     )
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=_model(),
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -60,7 +72,7 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
     if not candidates:
         return []
 
-    client = anthropic.Anthropic()
+    client = _anthropic_client()
 
     # Step 1: Get Claude relevance scores
     prompt_template = _load_prompt("rank_candidates.txt")
@@ -72,7 +84,7 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
     ).replace("{candidates}", candidates_text)
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=_model(),
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
