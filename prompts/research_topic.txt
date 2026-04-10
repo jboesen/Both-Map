@@ -1,0 +1,35 @@
+You are researching a topic to gather material for a long-form essay.
+
+## Topic
+{topic}
+
+## Writer's Cognitive Profile (for angle-finding)
+{profile}
+
+Use the web_search tool to find 5–8 high-quality sources on this topic. Prioritize:
+- arXiv papers or academic preprints
+- Primary sources (original research, original documents)
+- Substantive journalism or analysis (not summaries)
+- Wikipedia for definitional grounding only
+
+For each source, extract:
+- The core claim or finding
+- Any tensions, contradictions, or surprises relative to the mainstream view
+- Any angle that maps to the writer's mental models or third-order patterns
+
+After searching, synthesize your findings.
+
+Return a JSON object:
+{
+  "sources": [
+    {
+      "title": "",
+      "url": "",
+      "key_claim": "",
+      "surprising_angle": ""
+    }
+  ],
+  "synthesis": "3-5 paragraph synthesis of what's actually interesting here, written for the essay writer. Surface the tensions, the non-obvious mechanisms, the places where conventional wisdom is wrong or incomplete. This becomes the raw material for the essay."
+}
+
+Return only the JSON object.

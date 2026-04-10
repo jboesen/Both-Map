@@ -1,0 +1,29 @@
+You are updating a writer's cognitive profile based on raw voice/text feedback they gave about their writing.
+
+## Current Cognitive Profile
+{current_profile}
+
+## Feedback Transcript
+{transcript}
+
+## Post Topic (if provided)
+{post_topic}
+
+Analyze the feedback and extract concrete update signals:
+
+1. **New exclusions** — Did they express discomfort with a topic, format, or type of conclusion? Add to topics.exclusions.
+2. **New interests** — Did they mention wanting to explore something new? Add to topics.interests.
+3. **Tone updates** — Did they push back on depth level, style, or format? Update tone_preferences.
+4. **Mental model refinements** — Did feedback reveal a framework they care about more or less? Update mental_models accordingly.
+5. **Third-order pattern updates** — Did they say something like "I want more X-type insights" or "this felt too obvious"? Update third_order.
+
+Return a JSON object with two keys:
+{
+  "changes_summary": "One paragraph describing what changed and why",
+  "profile_updates": {
+    // Only include keys that actually changed. Partial updates are fine.
+    // Use the same schema as the full cognitive profile.
+  }
+}
+
+Return only the JSON object, no explanation outside it.

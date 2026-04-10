@@ -1,0 +1,67 @@
+You are analyzing external research about a person to infer their cognitive style and mental models.
+
+## Research About the Person
+{research}
+
+## Their Existing Cognitive Profile (if any)
+{existing_profile}
+
+Your job is to extract ONLY cognitive signals — NOT to summarize their biography or demographics.
+Do not reference their name, employer, location, or any identifying details in your output.
+The output will be merged into a cognitive profile used to generate writing topics.
+
+Extract:
+
+### Mental Models
+What frameworks does this person habitually reach for?
+- Look for: disciplinary lenses they bring to problems (economics, biology, systems thinking, etc.)
+- Look for: how they structure arguments — reductionist vs. holistic, mechanistic vs. emergent
+- Look for: what level of abstraction they prefer — implementation details vs. high-level dynamics
+- Only include models that appear to be deep habits of mind, not surface-level interests
+
+For each:
+- `model`: Short name
+- `description`: The model and how this person uses it, in general terms (no names/places)
+- `evidence`: Brief note on what in the research suggests this (keep it abstract, e.g. "repeated cross-domain application of X lens" not "their essay on Y")
+
+### Third-Order Patterns
+What type of insight or surprise does this person find compelling?
+- Do they seek hidden mechanisms behind surface phenomena?
+- Do they like finding isomorphic structures across unrelated domains?
+- Are they drawn to historical revisionism or contrarian framings?
+- Do they synthesize competing views into a new frame?
+
+For each:
+- `pattern`: Short name
+- `description`: The pattern in general terms (no identifying details)
+- `evidence`: Brief abstract note
+
+### Tone Inferences (only if strongly supported)
+- If the research strongly suggests a writing style preference, note it.
+- Otherwise leave this empty.
+
+Return a JSON object:
+{
+  "mental_models": [
+    {
+      "model": "",
+      "description": "",
+      "evidence": []
+    }
+  ],
+  "third_order": [
+    {
+      "pattern": "",
+      "description": "",
+      "evidence": []
+    }
+  ],
+  "tone_inferences": {
+    "style": "",
+    "depth": "",
+    "avoid": ""
+  }
+}
+
+Return only the JSON object. If you cannot infer something confidently, omit it rather than guessing.
+Do not include any personally identifying information in the output.

@@ -1,0 +1,72 @@
+You are parsing a person's consumption history from raw exported or copy-pasted content.
+
+## Format Hint
+{format_hint}
+
+## Raw Content
+{raw_content}
+
+## Task
+
+### Part 1 — Parse consumption items
+Extract every distinct piece of content this person read, watched, saved, or engaged with.
+For each item extract what you can — not all fields will be present in every format:
+- `title`: title of the piece
+- `url`: URL if present (otherwise null)
+- `source`: publication, channel, author, or platform
+- `summary`: any description, excerpt, or highlights present in the source data
+- `content_type`: "article" | "paper" | "video" | "book" | "thread" | "conversation" | "other"
+
+If the content is a Claude conversation history, treat each distinct topic/question thread as one item:
+- title: the main question or topic being explored
+- source: "Claude conversation"
+- summary: a 1-2 sentence synthesis of what was discussed
+
+### Part 2 — Cognitive signals from consumption patterns
+Looking across ALL the items as a whole, infer:
+
+**Mental models** — what frameworks does this person habitually reach for?
+Look at: what domains they draw from, how they structure the questions they explore,
+what level of abstraction they prefer, what analytical moves appear repeatedly.
+
+**Third-order patterns** — what kind of insight do they seek?
+Look at: do they collect anomalies? cross-domain mappings? historical revisionism?
+mechanism-finding? synthesis of competing views?
+
+**Interests** — specific topic areas that appear repeatedly (be precise, not generic).
+
+Do NOT include names, URLs, publication names, or any identifying information
+in the cognitive signals output. Keep signals abstract and transferable.
+Omit anything you can't infer confidently.
+
+Return a JSON object:
+{
+  "items": [
+    {
+      "title": "",
+      "url": null,
+      "source": "",
+      "summary": "",
+      "content_type": "article"
+    }
+  ],
+  "cognitive_signals": {
+    "mental_models": [
+      {
+        "model": "",
+        "description": "",
+        "evidence": []
+      }
+    ],
+    "third_order": [
+      {
+        "pattern": "",
+        "description": "",
+        "evidence": []
+      }
+    ],
+    "interests": []
+  }
+}
+
+Return only the JSON object.

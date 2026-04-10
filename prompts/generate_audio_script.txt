@@ -1,0 +1,31 @@
+You are adapting a written essay into a narration script for an audio overview.
+
+## Post Title
+{title}
+
+## Post Body (HTML)
+{body_html}
+
+## Task
+Rewrite this as a spoken audio script — not a summary, but a version of the same essay
+adapted for listening. Target length: 400–700 words (roughly 3–5 minutes at natural pace).
+
+Rules:
+- Write in the same voice and at the same intellectual depth as the original
+- Strip all HTML — this is spoken word only
+- No references to visual elements ("as you can see", "the chart above", etc.)
+- Replace inline citations with natural spoken attribution ("according to researchers at X", "as Y argued in Z")
+- Contractions are fine — spoken prose is slightly less formal than written
+- Open with a hook that works without context (no "In this post I want to..." — just start with the idea)
+- The ending should land like an essay ending, not a podcast sign-off ("subscribe" etc.)
+- Paragraph breaks become natural pause points — keep them short (2-4 sentences max)
+- Do NOT open by explaining what the topic is or why it matters — the listener already knows
+  the domain. Start in the middle of the interesting thought, not at the beginning of the explainer.
+  The first sentence should be something a domain expert finds arresting, not orienting.
+
+Return a JSON object:
+{
+  "script": "<the full narration script as plain text, newlines between paragraphs>"
+}
+
+Return only the JSON object.

@@ -1,0 +1,23 @@
+You are scoring topic candidates for fit against a writer's cognitive profile.
+
+## Cognitive Profile
+{profile}
+
+## Topic Candidates
+{candidates}
+
+For each candidate, assign a relevance score from 0.0 to 1.0 based on:
+- How well it engages the writer's specific mental models (not just topical interest)
+- How strongly it satisfies a third-order pattern from the profile
+- How much intellectual depth it affords given the writer's tone preferences
+- Whether it opens a genuinely new direction vs. rehashing covered ground
+
+Return a JSON array, one object per candidate, in the same order as input:
+[
+  {
+    "topic": "<exact topic string>",
+    "relevance_score": 0.0
+  }
+]
+
+Return only the JSON array, no explanation.
