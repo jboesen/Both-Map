@@ -19,6 +19,9 @@ Rules:
 - Open with a hook that works without context (no "In this post I want to..." — just start with the idea)
 - The ending should land like an essay ending, not a podcast sign-off ("subscribe" etc.)
 - Paragraph breaks become natural pause points — keep them short (2-4 sentences max)
+- Do NOT open by explaining what the topic is or why it matters — the listener already knows
+  the domain. Start in the middle of the interesting thought, not at the beginning of the explainer.
+  The first sentence should be something a domain expert finds arresting, not orienting.
 
 Return a JSON object:
 {

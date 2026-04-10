@@ -22,11 +22,28 @@ Write a post that:
 - Depth: {depth}
 - Avoid: {avoid}
 
+### Depth contract — this is the most important constraint
+The reader already knows the domain. They do not need:
+- A definition of the topic or its components
+- A history of how we got here
+- An explanation of why this matters or why they should care
+- Any sentence that begins with "X is a concept where..." or "To understand Y, we first need to..."
+- Surface-level takes that anyone with a Wikipedia summary already has
+
+What they want instead:
+- The second and third-order effects that most analysts miss entirely
+- The structural implication that follows from the mechanism — not the mechanism itself
+- The point where the conventional framing quietly smuggles in a wrong assumption
+- What changes when you apply the writer's specific mental models to this: {mental_models}
+- The insight that someone who already deeply understands this topic would still find surprising
+- If two things are in tension, don't explain the tension — analyze what resolves it and what that resolution reveals
+
+Write as if the reader has already read everything obvious about this topic and is coming to you specifically because they want to think about it at a level that most writing doesn't reach.
+
 ### Intellectual requirements
 - Explicitly deploy the relevant mental model(s): {mental_models}
 - Deliver on the third-order pattern(s): {third_order}
 - Surface at least one non-obvious tension or reversal
-- Don't explain the obvious; assume domain familiarity
 - Cite sources inline naturally (not as footnotes or a bibliography)
 
 ### Format
