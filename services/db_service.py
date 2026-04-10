@@ -9,7 +9,7 @@ FIXED_PROFILE_ID = "00000000-0000-0000-0000-000000000001"
 @lru_cache(maxsize=1)
 def get_client() -> Client:
     url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_SERVICE_KEY"]
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ["SUPABASE_SERVICE_KEY"]
     return create_client(url, key)
 
 
