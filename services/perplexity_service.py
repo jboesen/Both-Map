@@ -129,7 +129,7 @@ def research_topic(topic: str, profile: dict) -> dict:
         raise EnvironmentError("PERPLEXITY_API_KEY is not set")
 
     # Extract relevant context from profile for better research
-    interests = profile.get("interests", [])
+    interests = profile.get("topics", {}).get("interests", [])
     mental_models = profile.get("mental_models", [])
 
     context_parts = []

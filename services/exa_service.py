@@ -70,7 +70,7 @@ def research_user(user_info: dict) -> str:
     content_blocks = []
 
     for result in search_results.results:
-        sources.append(result.url)
+        sources.append({"title": result.title or result.url, "url": result.url})
         if result.text:
             content_blocks.append(f"Source: {result.title}\n{result.text[:1000]}")
 
@@ -100,7 +100,7 @@ def research_topic(topic: str, profile: dict) -> dict:
     exa = _exa_client()
 
     # Extract context from profile
-    interests = profile.get("interests", [])
+    interests = profile.get("topics", {}).get("interests", [])
     interest_topics = ", ".join([i.get("topic", "") for i in interests[:5]]) if interests else ""
 
     # Build enhanced query
@@ -114,7 +114,6 @@ def research_topic(topic: str, profile: dict) -> dict:
         num_results=15,
         use_autoprompt=True,
         text={"max_characters": 3000},
-        category="research paper, news, company, github, tweet, pdf",
         start_published_date="2024-01-01",  # Focus on recent content
     )
 
@@ -123,7 +122,7 @@ def research_topic(topic: str, profile: dict) -> dict:
     content_sections = []
 
     for i, result in enumerate(search_results.results[:10], 1):
-        sources.append(result.url)
+        sources.append({"title": result.title or result.url, "url": result.url})
         if result.text:
             content_sections.append(
                 f"{i}. {result.title}\n{result.text[:500]}...\nSource: {result.url}\n"
