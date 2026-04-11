@@ -115,3 +115,84 @@ def research_user(user_info: dict) -> str:
         )
 
     return content
+
+
+def research_topic(topic: str, profile: dict) -> dict:
+    """
+    Uses Perplexity Sonar to research a topic with web search.
+    Returns a dict with 'synthesis' (str) and 'sources' (list of str).
+
+    Raises if PERPLEXITY_API_KEY is not set.
+    """
+    api_key = os.environ.get("PERPLEXITY_API_KEY")
+    if not api_key:
+        raise EnvironmentError("PERPLEXITY_API_KEY is not set")
+
+    # Extract relevant context from profile for better research
+    interests = profile.get("interests", [])
+    mental_models = profile.get("mental_models", [])
+
+    context_parts = []
+    if interests:
+        interest_topics = ", ".join([i.get("topic", "") for i in interests[:5]])
+        context_parts.append(f"Author's interests: {interest_topics}")
+    if mental_models:
+        models = ", ".join([m.get("model", "") for m in mental_models[:3]])
+        context_parts.append(f"Relevant frameworks: {models}")
+
+    context = "\n".join(context_parts) if context_parts else ""
+
+    query = f"""Research the following topic thoroughly using current, authoritative sources:
+
+Topic: {topic}
+
+{context}
+
+Please provide:
+1. Key recent developments, data, and facts about this topic
+2. Different perspectives and debates in this area
+3. Emerging trends or underexplored angles
+4. Concrete examples, case studies, or data points
+5. Expert opinions and academic research
+
+Focus on DEPTH and SUBSTANCE. Prioritize recent, high-quality sources. Look for insights that go beyond surface-level coverage. Include specific facts, statistics, and examples that could support compelling arguments.
+
+Synthesize your findings into a comprehensive research brief (4-8 paragraphs) that could inform a thoughtful essay on this topic."""
+
+    payload = {
+        "model": PERPLEXITY_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a research assistant specializing in deep topic research. "
+                    "You synthesize information from multiple authoritative sources to provide "
+                    "comprehensive, nuanced briefings on complex topics. You prioritize recent, "
+                    "high-quality sources and provide specific facts, data, and examples."
+                ),
+            },
+            {"role": "user", "content": query},
+        ],
+        "search_recency_filter": "month",
+        "return_citations": True,
+    }
+
+    with httpx.Client(timeout=60) as client:
+        response = client.post(
+            f"{PERPLEXITY_BASE}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        response.raise_for_status()
+
+    data = response.json()
+    synthesis = data["choices"][0]["message"]["content"]
+    citations = data.get("citations", [])
+
+    return {
+        "synthesis": synthesis,
+        "sources": citations,
+    }
