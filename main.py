@@ -48,6 +48,19 @@ app.add_middleware(
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> str:
+    """
+    Extract user_id from the Authorization: Bearer <user_id> header.
+    For development/testing, the token is simply the user_id.
+    TODO: Implement proper JWT validation for production.
+    """
+    return credentials.credentials
+
 
 class UserInfo(BaseModel):
     name: str | None = None
