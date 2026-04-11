@@ -35,35 +35,17 @@ def _extract_json(text: str) -> str:
 def research_and_write(topic: str, profile: dict) -> dict:
     """
     Two-step pipeline:
-      1. Claude with web_search tool researches the topic
+      1. Perplexity Sonar researches the topic with web search
       2. Claude writes the post using the research + cognitive profile
 
     Returns {title, body_html, topic, sources}
     """
     client = _anthropic_client()
 
-    # ── Step 1: Research ──────────────────────────────────────────────────────
-    research_prompt_template = _load_prompt("research_topic.txt")
-    research_prompt = research_prompt_template.replace("{topic}", topic).replace(
-        "{profile}", json.dumps(profile, indent=2)
-    )
+    # ── Step 1: Research with Exa ─────────────────────────────────────────────
+    from services.exa_service import research_topic
 
-    web_search_tool = {
-        "type": "web_search_20250305",
-        "name": "web_search",
-    }
-
-    research_message = client.messages.create(
-        model=_model(),
-        max_tokens=4096,
-        tools=[web_search_tool],
-        messages=[{"role": "user", "content": research_prompt}],
-    )
-
-    # Extract text from the final response (after tool use rounds)
-    research_text = _extract_final_text(research_message)
-    research_data = json.loads(_extract_json(research_text))
-
+    research_data = research_topic(topic, profile)
     sources = research_data.get("sources", [])
     synthesis = research_data.get("synthesis", "")
 
@@ -103,16 +85,3 @@ def research_and_write(topic: str, profile: dict) -> dict:
         "topic": topic,
         "sources": sources,
     }
-
-
-def _extract_final_text(message: anthropic.types.Message) -> str:
-    """
-    Extract the final text content from a message that may have gone through
-    tool use rounds. Returns the last text block.
-    """
-    text_blocks = [
-        block.text
-        for block in message.content
-        if hasattr(block, "text")
-    ]
-    return text_blocks[-1] if text_blocks else ""

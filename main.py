@@ -117,27 +117,27 @@ def onboard(req: OnboardRequest, user_id: str = Depends(get_current_user)):
     embed_posts(user_id, user_posts)
     embed_reading_history(user_id, reading_history)
 
-    perplexity_ran = False
+    exa_ran = False
     if req.user_info:
         try:
-            from services.perplexity_service import research_user
+            from services.exa_service import research_user
             user_info_dict = req.user_info.model_dump(exclude_none=True)
             user_info_dict.setdefault("substack_url", req.substack_url)
             synthesis = research_user(user_info_dict)
             profile = enrich_profile_from_perplexity(user_id, synthesis)
-            perplexity_ran = True
+            exa_ran = True
         except EnvironmentError:
-            logger.warning("PERPLEXITY_API_KEY not set — skipping enrichment")
+            logger.warning("EXA_API_KEY not set — skipping enrichment")
         except Exception:
-            logger.exception("Perplexity enrichment failed")
+            logger.exception("Exa enrichment failed")
 
     update_user_settings(user_id, onboarded=True)
-    return {"profile": profile, "perplexity_enrichment_ran": perplexity_ran}
+    return {"profile": profile, "exa_enrichment_ran": exa_ran}
 
 
 @app.post("/enrich-profile")
 def enrich_profile(user_info: UserInfo, user_id: str = Depends(get_current_user)):
-    from services.perplexity_service import research_user
+    from services.exa_service import research_user
     user_info_dict = user_info.model_dump(exclude_none=True)
     synthesis = research_user(user_info_dict)
     profile = enrich_profile_from_perplexity(user_id, synthesis)

@@ -4,16 +4,24 @@ services:
     runtime: docker
     plan: free
     envVars:
+      # LLM Configuration (Minimax or Anthropic-compatible API)
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: ANTHROPIC_BASE_URL
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
+      # Database (required)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # Research (required for topic research and web search)
+      - key: EXA_API_KEY
+        sync: false
+      # Optional features
       - key: CRON_SCHEDULE_HOURS
         value: "24"
-      - key: PERPLEXITY_API_KEY
-        sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID
