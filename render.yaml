@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: both-map
+    runtime: docker
+    plan: free
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CRON_SCHEDULE_HOURS
+        value: "24"
+      - key: PERPLEXITY_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        value: "21m00Tcm4TlvDq8ikWAM"
+      - key: ELEVENLABS_MODEL_ID
+        value: "eleven_turbo_v2_5"
+      - key: PORT
+        value: "8000"
