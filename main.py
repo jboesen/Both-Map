@@ -2,9 +2,10 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+# from fastapi import Depends, Security
+# from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 load_dotenv()
@@ -47,19 +48,20 @@ app.add_middleware(
 )
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
-
-security = HTTPBearer()
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-) -> str:
-    """
-    Extract user_id from the Authorization: Bearer <user_id> header.
-    For development/testing, the token is simply the user_id.
-    TODO: Implement proper JWT validation for production.
-    """
-    return credentials.credentials
+# Auth disabled for development - all requests use user_id="default"
+# TODO: Re-enable auth for production
+#
+# security = HTTPBearer()
+#
+# def get_current_user(
+#     credentials: HTTPAuthorizationCredentials = Security(security),
+# ) -> str:
+#     """
+#     Extract user_id from the Authorization: Bearer <user_id> header.
+#     For development/testing, the token is simply the user_id.
+#     TODO: Implement proper JWT validation for production.
+#     """
+#     return credentials.credentials
 
 
 class UserInfo(BaseModel):
@@ -109,7 +111,7 @@ class PublishRequest(BaseModel):
 
 
 @app.post("/onboard")
-def onboard(req: OnboardRequest, user_id: str = Depends(get_current_user)):
+def onboard(req: OnboardRequest, user_id: str = "default"):
     """
     Full onboarding: scrape posts + reading history, build cognitive profile,
     embed into vector store, optionally enrich via Perplexity.
@@ -149,7 +151,7 @@ def onboard(req: OnboardRequest, user_id: str = Depends(get_current_user)):
 
 
 @app.post("/enrich-profile")
-def enrich_profile(user_info: UserInfo, user_id: str = Depends(get_current_user)):
+def enrich_profile(user_info: UserInfo, user_id: str = "default"):
     from services.exa_service import research_user
     user_info_dict = user_info.model_dump(exclude_none=True)
     synthesis = research_user(user_info_dict)
@@ -158,7 +160,7 @@ def enrich_profile(user_info: UserInfo, user_id: str = Depends(get_current_user)
 
 
 @app.post("/ingest")
-def ingest_history(req: IngestRequest, user_id: str = Depends(get_current_user)):
+def ingest_history(req: IngestRequest, user_id: str = "default"):
     result = ingest(
         user_id=user_id,
         raw_content=req.content,
@@ -169,7 +171,7 @@ def ingest_history(req: IngestRequest, user_id: str = Depends(get_current_user))
 
 
 @app.post("/feedback")
-def feedback(req: FeedbackRequest, user_id: str = Depends(get_current_user)):
+def feedback(req: FeedbackRequest, user_id: str = "default"):
     updated = update_profile_from_feedback(user_id, req.transcript, req.post_topic)
     changes = ""
     if updated.get("feedback_history"):
@@ -178,12 +180,12 @@ def feedback(req: FeedbackRequest, user_id: str = Depends(get_current_user)):
 
 
 @app.get("/profile")
-def get_profile(user_id: str = Depends(get_current_user)):
+def get_profile(user_id: str = "default"):
     return load_profile(user_id)
 
 
 @app.put("/profile")
-def put_profile(partial: dict, user_id: str = Depends(get_current_user)):
+def put_profile(partial: dict, user_id: str = "default"):
     existing = load_profile(user_id)
     updated = merge_profile_update(existing, partial)
     save_profile(user_id, updated)
@@ -191,20 +193,20 @@ def put_profile(partial: dict, user_id: str = Depends(get_current_user)):
 
 
 @app.get("/topics")
-def topics(user_id: str = Depends(get_current_user)):
+def topics(user_id: str = "default"):
     profile = load_profile(user_id)
     selection = select_topic(user_id, profile)
     return {"candidates": selection["ranked"], "top": selection["top"]}
 
 
 @app.post("/generate")
-def generate(req: GenerateRequest, user_id: str = Depends(get_current_user)):
+def generate(req: GenerateRequest, user_id: str = "default"):
     profile = load_profile(user_id)
     return research_and_write(req.topic, profile)
 
 
 @app.post("/audio")
-def audio(req: AudioRequest, user_id: str = Depends(get_current_user)):
+def audio(req: AudioRequest, user_id: str = "default"):
     from services.audio_service import generate_audio_overview
     try:
         return generate_audio_overview(user_id, req.title, req.body_html)
@@ -215,7 +217,7 @@ def audio(req: AudioRequest, user_id: str = Depends(get_current_user)):
 
 
 @app.post("/publish")
-def publish(req: PublishRequest, user_id: str = Depends(get_current_user)):
+def publish(req: PublishRequest, user_id: str = "default"):
     settings = get_user_settings(user_id)
     try:
         url = publish_post(
@@ -231,7 +233,7 @@ def publish(req: PublishRequest, user_id: str = Depends(get_current_user)):
 
 
 @app.post("/run")
-def run(user_id: str = Depends(get_current_user)):
+def run(user_id: str = "default"):
     log_entry = run_pipeline(user_id)
     if log_entry["status"] == "error":
         raise HTTPException(status_code=500, detail=log_entry.get("error"))
@@ -239,6 +241,6 @@ def run(user_id: str = Depends(get_current_user)):
 
 
 @app.get("/runs")
-def runs(user_id: str = Depends(get_current_user), limit: int = 20):
+def runs(user_id: str = "default", limit: int = 20):
     """Returns recent pipeline run history for the current user."""
     return get_run_history(user_id, limit=limit)
