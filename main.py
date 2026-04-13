@@ -193,9 +193,30 @@ def put_profile(partial: dict, user_id: str = "default"):
 
 
 @app.get("/topics")
-def topics(user_id: str = "default"):
+def topics(user_id: str = "default", use_mock: bool = False):
     try:
-        logger.info(f"GET /topics called for user_id={user_id}")
+        logger.info(f"GET /topics called for user_id={user_id}, use_mock={use_mock}")
+
+        # Return mock topics if requested (useful for testing)
+        if use_mock:
+            logger.info("Returning mock topics")
+            return {
+                "candidates": [
+                    {
+                        "topic": "The Hidden Economics of Attention Markets",
+                        "rationale": "Explores how attention has become a traded commodity",
+                        "mental_model_fit": "supply and demand, network effects",
+                        "third_order_fit": "social feedback loops",
+                        "novelty_score": 0.85,
+                        "relevance_score": 0.90
+                    }
+                ],
+                "top": {
+                    "topic": "The Hidden Economics of Attention Markets",
+                    "rationale": "Explores how attention has become a traded commodity"
+                }
+            }
+
         profile = load_profile(user_id)
         logger.info(f"Profile loaded: {len(profile.get('topics', {}).get('interests', []))} interests")
         selection = select_topic(user_id, profile)

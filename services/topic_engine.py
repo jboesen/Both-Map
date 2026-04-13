@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import time
+from typing import Optional
 
 import anthropic
 
@@ -8,6 +10,10 @@ from services.profile_service import load_profile
 from services.vector_store import get_coverage_gaps
 
 PROMPTS_DIR_PATH = "prompts"
+
+# Simple in-memory cache for topics (TTL: 1 hour)
+_topic_cache: dict[str, dict] = {}
+_CACHE_TTL = 3600  # 1 hour
 
 
 def _anthropic_client() -> anthropic.Anthropic:
@@ -143,10 +149,32 @@ def select_topic(user_id: str, profile: dict) -> dict:
     """
     Generates candidates, ranks them, and returns the top-ranked topic.
     Returns {top: candidate_dict, ranked: [candidate_dict, ...]}
+    Uses in-memory cache to avoid expensive API calls on every request.
     """
+    cache_key = f"topics_{user_id}"
+
+    # Check cache
+    if cache_key in _topic_cache:
+        cached = _topic_cache[cache_key]
+        if time.time() - cached["timestamp"] < _CACHE_TTL:
+            print(f"[CACHE HIT] Returning cached topics for {user_id}")
+            return cached["data"]
+        else:
+            print(f"[CACHE EXPIRED] Regenerating topics for {user_id}")
+
+    # Generate fresh topics
+    print(f"[CACHE MISS] Generating topics for {user_id}")
     candidates = generate_candidates(profile, n=20)
     ranked = rank_candidates(candidates, profile, user_id=user_id)
-    return {"top": ranked[0] if ranked else None, "ranked": ranked}
+    result = {"top": ranked[0] if ranked else None, "ranked": ranked}
+
+    # Cache the result
+    _topic_cache[cache_key] = {
+        "data": result,
+        "timestamp": time.time()
+    }
+
+    return result
 
 
 def _topic_similarity(a: str, b: str) -> float:
