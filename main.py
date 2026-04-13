@@ -194,9 +194,16 @@ def put_profile(partial: dict, user_id: str = "default"):
 
 @app.get("/topics")
 def topics(user_id: str = "default"):
-    profile = load_profile(user_id)
-    selection = select_topic(user_id, profile)
-    return {"candidates": selection["ranked"], "top": selection["top"]}
+    try:
+        logger.info(f"GET /topics called for user_id={user_id}")
+        profile = load_profile(user_id)
+        logger.info(f"Profile loaded: {len(profile.get('topics', {}).get('interests', []))} interests")
+        selection = select_topic(user_id, profile)
+        logger.info(f"Topic selection complete: {len(selection.get('ranked', []))} candidates")
+        return {"candidates": selection["ranked"], "top": selection["top"]}
+    except Exception as e:
+        logger.error(f"Error in /topics: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get topics: {str(e)}")
 
 
 @app.post("/generate")
