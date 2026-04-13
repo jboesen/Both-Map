@@ -47,25 +47,30 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     Uses Claude to generate n candidate topics based on the cognitive profile.
     Returns list of {topic, rationale, mental_model_fit, third_order_fit}.
     """
-    client = _anthropic_client()
+    try:
+        client = _anthropic_client()
 
-    prompt_template = _load_prompt("generate_candidates.txt")
-    prompt = (
-        prompt_template.replace("{profile}", json.dumps(profile, indent=2))
-        .replace("{covered_topics}", json.dumps(profile["topics"].get("covered", [])))
-        .replace("{exclusions}", json.dumps(profile["topics"].get("exclusions", [])))
-        .replace("{n}", str(n))
-    )
+        prompt_template = _load_prompt("generate_candidates.txt")
+        prompt = (
+            prompt_template.replace("{profile}", json.dumps(profile, indent=2))
+            .replace("{covered_topics}", json.dumps(profile["topics"].get("covered", [])))
+            .replace("{exclusions}", json.dumps(profile["topics"].get("exclusions", [])))
+            .replace("{n}", str(n))
+        )
 
-    message = client.messages.create(
-        model=_model(),
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
+        message = client.messages.create(
+            model=_model(),
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
-    raw = message.content[0].text
-    candidates = json.loads(_extract_json(raw))
-    return candidates
+        raw = message.content[0].text
+        candidates = json.loads(_extract_json(raw))
+        return candidates
+    except Exception as e:
+        print(f"[ERROR] generate_candidates failed: {type(e).__name__}: {str(e)}")
+        print(f"[ERROR] Model: {_model()}, Base URL: {os.environ.get('ANTHROPIC_BASE_URL', 'default')}")
+        raise RuntimeError(f"Failed to generate topic candidates via Claude API: {str(e)}") from e
 
 
 def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") -> list[dict]:
@@ -78,31 +83,40 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
     if not candidates:
         return []
 
-    client = _anthropic_client()
+    try:
+        client = _anthropic_client()
 
-    # Step 1: Get Claude relevance scores
-    prompt_template = _load_prompt("rank_candidates.txt")
-    candidates_text = json.dumps(
-        [{"topic": c["topic"]} for c in candidates], indent=2
-    )
-    prompt = prompt_template.replace(
-        "{profile}", json.dumps(profile, indent=2)
-    ).replace("{candidates}", candidates_text)
+        # Step 1: Get Claude relevance scores
+        prompt_template = _load_prompt("rank_candidates.txt")
+        candidates_text = json.dumps(
+            [{"topic": c["topic"]} for c in candidates], indent=2
+        )
+        prompt = prompt_template.replace(
+            "{profile}", json.dumps(profile, indent=2)
+        ).replace("{candidates}", candidates_text)
 
-    message = client.messages.create(
-        model=_model(),
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
+        message = client.messages.create(
+            model=_model(),
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
-    raw = message.content[0].text
-    scores = json.loads(_extract_json(raw))
-    score_map = {s["topic"]: float(s["relevance_score"]) for s in scores}
+        raw = message.content[0].text
+        scores = json.loads(_extract_json(raw))
+        score_map = {s["topic"]: float(s["relevance_score"]) for s in scores}
+    except Exception as e:
+        print(f"[ERROR] rank_candidates Claude API call failed: {type(e).__name__}: {str(e)}")
+        raise RuntimeError(f"Failed to rank candidates via Claude API: {str(e)}") from e
 
-    # Step 2: Get novelty scores from vector store
-    topic_strings = [c["topic"] for c in candidates]
-    gap_results = get_coverage_gaps(user_id, topic_strings)
-    gap_map = {g["topic"]: g["distance"] for g in gap_results}
+    try:
+        # Step 2: Get novelty scores from vector store
+        topic_strings = [c["topic"] for c in candidates]
+        gap_results = get_coverage_gaps(user_id, topic_strings)
+        gap_map = {g["topic"]: g["distance"] for g in gap_results}
+    except Exception as e:
+        print(f"[ERROR] get_coverage_gaps failed: {type(e).__name__}: {str(e)}")
+        # Continue with default novelty scores if vector store fails
+        gap_map = {c["topic"]: 0.5 for c in candidates}
 
     # Step 3: Build combined relevance (relevance * novelty_boost)
     for c in candidates:
