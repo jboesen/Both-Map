@@ -29,17 +29,9 @@ import os
 import re
 from pathlib import Path
 
-import anthropic
+from services.llm_client import get_client
 
 PROMPTS_DIR = Path("prompts")
-
-
-def _anthropic_client() -> anthropic.Anthropic:
-    kwargs = {}
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
-    if base_url:
-        kwargs["base_url"] = base_url
-    return anthropic.Anthropic(**kwargs)
 
 
 def _model() -> str:
@@ -95,7 +87,7 @@ def parse_and_extract(
         }
       }
     """
-    client = _anthropic_client()
+    client = get_client()
 
     # Truncate very large pastes to avoid hitting context limits.
     # 80k chars ≈ ~20k tokens, well within claude-sonnet-4's context.
@@ -108,13 +100,13 @@ def parse_and_extract(
         "{format_hint}", _format_hint_description(format_hint)
     ).replace("{raw_content}", content_to_send)
 
-    message = client.messages.create(
+    message = client.create_message(
         model=_model(),
         max_tokens=8096,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message.content[0].text
+    raw = message["content"][0]["text"]
     return json.loads(_extract_json(raw))
 
 

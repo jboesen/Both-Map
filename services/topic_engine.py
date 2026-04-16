@@ -4,8 +4,7 @@ import re
 import time
 from typing import Optional
 
-import anthropic
-
+from services.llm_client import get_client
 from services.profile_service import load_profile
 from services.vector_store import get_coverage_gaps
 
@@ -14,14 +13,6 @@ PROMPTS_DIR_PATH = "prompts"
 # Simple in-memory cache for topics (TTL: 1 hour)
 _topic_cache: dict[str, dict] = {}
 _CACHE_TTL = 3600  # 1 hour
-
-
-def _anthropic_client() -> anthropic.Anthropic:
-    kwargs = {}
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
-    if base_url:
-        kwargs["base_url"] = base_url
-    return anthropic.Anthropic(**kwargs)
 
 
 def _model() -> str:
@@ -48,7 +39,7 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
     Returns list of {topic, rationale, mental_model_fit, third_order_fit}.
     """
     try:
-        client = _anthropic_client()
+        client = get_client()
 
         prompt_template = _load_prompt("generate_candidates.txt")
         prompt = (
@@ -58,13 +49,13 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
             .replace("{n}", str(n))
         )
 
-        message = client.messages.create(
+        message = client.create_message(
             model=_model(),
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
 
-        raw = message.content[0].text
+        raw = message["content"][0]["text"]
         candidates = json.loads(_extract_json(raw))
         return candidates
     except Exception as e:
@@ -84,7 +75,7 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
         return []
 
     try:
-        client = _anthropic_client()
+        client = get_client()
 
         # Step 1: Get Claude relevance scores
         prompt_template = _load_prompt("rank_candidates.txt")
@@ -95,13 +86,13 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
             "{profile}", json.dumps(profile, indent=2)
         ).replace("{candidates}", candidates_text)
 
-        message = client.messages.create(
+        message = client.create_message(
             model=_model(),
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
 
-        raw = message.content[0].text
+        raw = message["content"][0]["text"]
         scores = json.loads(_extract_json(raw))
         score_map = {s["topic"]: float(s["relevance_score"]) for s in scores}
     except Exception as e:

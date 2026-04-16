@@ -3,17 +3,9 @@ import os
 import re
 from pathlib import Path
 
-import anthropic
+from services.llm_client import get_client
 
 PROMPTS_DIR = Path("prompts")
-
-
-def _anthropic_client() -> anthropic.Anthropic:
-    kwargs = {}
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
-    if base_url:
-        kwargs["base_url"] = base_url
-    return anthropic.Anthropic(**kwargs)
 
 
 def _model() -> str:
@@ -40,7 +32,7 @@ def research_and_write(topic: str, profile: dict) -> dict:
 
     Returns {title, body_html, topic, sources}
     """
-    client = _anthropic_client()
+    client = get_client()
 
     # ── Step 1: Research with Exa ─────────────────────────────────────────────
     from services.exa_service import research_topic
@@ -70,13 +62,13 @@ def research_and_write(topic: str, profile: dict) -> dict:
         .replace("{third_order}", third_order)
     )
 
-    write_message = client.messages.create(
+    write_message = client.create_message(
         model=_model(),
         max_tokens=6000,
         messages=[{"role": "user", "content": write_prompt}],
     )
 
-    write_text = write_message.content[0].text
+    write_text = write_message["content"][0]["text"]
     post_data = json.loads(_extract_json(write_text))
 
     return {

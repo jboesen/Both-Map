@@ -4,17 +4,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-import anthropic
-
 from services.db_service import load_profile, save_profile
-
-
-def _anthropic_client() -> anthropic.Anthropic:
-    kwargs = {}
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
-    if base_url:
-        kwargs["base_url"] = base_url
-    return anthropic.Anthropic(**kwargs)
+from services.llm_client import get_client
 
 
 def _model() -> str:
@@ -40,7 +31,7 @@ def build_profile_from_history(
     user_posts: list[dict],
     reading_history: list[dict],
 ) -> dict:
-    client = _anthropic_client()
+    client = get_client()
 
     posts_text = "\n\n".join(
         f"### {p['title']}\nURL: {p.get('url', '')}\n\n{p.get('content', '')[:3000]}"
@@ -56,13 +47,13 @@ def build_profile_from_history(
         "{reading_history}", reading_text
     )
 
-    message = client.messages.create(
+    message = client.create_message(
         model=_model(),
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message.content[0].text
+    raw = message["content"][0]["text"]
     updates = json.loads(_extract_json(raw))
 
     profile = load_profile(user_id)
@@ -80,7 +71,7 @@ def update_profile_from_feedback(
     transcript: str,
     post_topic: str | None = None,
 ) -> dict:
-    client = _anthropic_client()
+    client = get_client()
 
     profile = load_profile(user_id)
     prompt_template = _load_prompt("update_profile_from_feedback.txt")
@@ -90,13 +81,13 @@ def update_profile_from_feedback(
         .replace("{post_topic}", post_topic or "N/A")
     )
 
-    message = client.messages.create(
+    message = client.create_message(
         model=_model(),
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message.content[0].text
+    raw = message["content"][0]["text"]
     result = json.loads(_extract_json(raw))
 
     changes_summary = result.get("changes_summary", "")
@@ -139,7 +130,7 @@ def update_profile_from_feedback(
 
 
 def enrich_profile_from_perplexity(user_id: str, perplexity_synthesis: str) -> dict:
-    client = _anthropic_client()
+    client = get_client()
 
     profile = load_profile(user_id)
     prompt_template = _load_prompt("extract_mental_models_from_research.txt")
@@ -147,13 +138,13 @@ def enrich_profile_from_perplexity(user_id: str, perplexity_synthesis: str) -> d
         "{existing_profile}", json.dumps(profile, indent=2)
     )
 
-    message = client.messages.create(
+    message = client.create_message(
         model=_model(),
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message.content[0].text
+    raw = message["content"][0]["text"]
     extracted = json.loads(_extract_json(raw))
 
     existing_models = {m["model"] for m in profile.get("mental_models", [])}

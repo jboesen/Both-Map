@@ -22,22 +22,15 @@ import re
 import unicodedata
 from pathlib import Path
 
-import anthropic
 import httpx
+
+from services.llm_client import get_client
 
 ELEVENLABS_BASE = "https://api.elevenlabs.io/v1"
 DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"   # Rachel — calm, clear narration
 DEFAULT_MODEL_ID = "eleven_turbo_v2_5"
 
 PROMPTS_DIR = Path("prompts")
-
-
-def _anthropic_client() -> anthropic.Anthropic:
-    kwargs = {}
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
-    if base_url:
-        kwargs["base_url"] = base_url
-    return anthropic.Anthropic(**kwargs)
 
 
 def _model() -> str:
@@ -67,20 +60,20 @@ def generate_script(title: str, body_html: str) -> str:
     Uses Claude to convert post HTML into a narration script for audio.
     Returns plain text script.
     """
-    client = _anthropic_client()
+    client = get_client()
 
     prompt_template = _load_prompt("generate_audio_script.txt")
     prompt = prompt_template.replace("{title}", title).replace(
         "{body_html}", body_html
     )
 
-    message = client.messages.create(
+    message = client.create_message(
         model=_model(),
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message.content[0].text
+    raw = message["content"][0]["text"]
     data = json.loads(_extract_json(raw))
     return data["script"]
 
