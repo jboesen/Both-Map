@@ -65,11 +65,15 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
         if not raw:
             raise ValueError(f"No text block found in response: {message['content']}")
 
-        candidates = json.loads(_extract_json(raw))
+        extracted = _extract_json(raw)
+        print(f"[DEBUG] Extracted JSON string (first 500 chars): {extracted[:500]}")
+        candidates = json.loads(extracted)
         return candidates
     except Exception as e:
         print(f"[ERROR] generate_candidates failed: {type(e).__name__}: {str(e)}")
-        print(f"[ERROR] Model: {_model()}, Base URL: {os.environ.get('ANTHROPIC_BASE_URL', 'default')}")
+        print(f"[ERROR] Model: {_model()}")
+        if 'raw' in locals():
+            print(f"[ERROR] Raw response (first 1000 chars): {raw[:1000]}")
         raise RuntimeError(f"Failed to generate topic candidates via Claude API: {str(e)}") from e
 
 
