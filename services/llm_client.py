@@ -55,21 +55,31 @@ class UnifiedLLMClient:
         self.api_key = os.environ.get("MINIMAX_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         self.base_url = os.environ.get("MINIMAX_BASE_URL") or os.environ.get("ANTHROPIC_BASE_URL") or "https://api.minimax.io/anthropic"
 
+        print(f"[LLM] Initializing client:")
+        print(f"[LLM]   API key: {self.api_key[:20]}...{self.api_key[-4:] if self.api_key else 'NONE'}")
+        print(f"[LLM]   Base URL: {self.base_url}")
+        print(f"[LLM]   Is MiniMax legacy: {self.is_minimax}")
+
         if not self.api_key:
             raise EnvironmentError("MINIMAX_API_KEY (or ANTHROPIC_API_KEY) environment variable is required")
 
         if self.is_minimax:
-            print(f"[LLM] Using Minimax legacy HTTP API at {self.base_url}")
+            print(f"[LLM] Creating Minimax legacy HTTP client")
             self.http_client = httpx.Client(timeout=60.0)
         else:
-            print(f"[LLM] Using Anthropic SDK with base_url={self.base_url}")
-            kwargs = {
-                "api_key": self.api_key,
-                "timeout": 90.0,  # 90 second timeout for API calls
-            }
-            if self.base_url:
-                kwargs["base_url"] = self.base_url
-            self.anthropic_client = anthropic.Anthropic(**kwargs)
+            print(f"[LLM] Creating Anthropic SDK client with timeout=90s")
+            try:
+                kwargs = {
+                    "api_key": self.api_key,
+                    "timeout": 90.0,  # 90 second timeout for API calls
+                }
+                if self.base_url:
+                    kwargs["base_url"] = self.base_url
+                self.anthropic_client = anthropic.Anthropic(**kwargs)
+                print(f"[LLM] Anthropic SDK client created successfully")
+            except Exception as e:
+                print(f"[LLM] Failed to create Anthropic SDK client: {type(e).__name__}: {str(e)}")
+                raise
 
     def create_message(
         self,
@@ -115,12 +125,20 @@ class UnifiedLLMClient:
         if system:
             kwargs["system"] = system
 
-        print(f"[LLM] Calling Anthropic API with model={model}, max_tokens={max_tokens}")
+        print(f"[LLM] About to call Anthropic API:")
+        print(f"[LLM]   Model: {model}")
+        print(f"[LLM]   Max tokens: {max_tokens}")
+        print(f"[LLM]   Messages: {len(messages)} message(s)")
+        print(f"[LLM]   System prompt: {'Yes' if system else 'No'}")
+        print(f"[LLM] Making HTTP request now...")
+
         try:
             response = self.anthropic_client.messages.create(**kwargs)
-            print(f"[LLM] Anthropic API call succeeded")
+            print(f"[LLM] ✓ API call succeeded, got {len(response.content)} content block(s)")
         except Exception as e:
-            print(f"[LLM] Anthropic API call failed: {type(e).__name__}: {str(e)}")
+            print(f"[LLM] ✗ API call failed: {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"[LLM] Traceback:\n{traceback.format_exc()}")
             raise
 
         # Convert Anthropic SDK response to dict
