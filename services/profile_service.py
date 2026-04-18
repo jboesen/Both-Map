@@ -9,7 +9,7 @@ from services.llm_client import get_client
 
 
 def _model() -> str:
-    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7-highspeed")
 
 PROMPTS_DIR = Path("prompts")
 

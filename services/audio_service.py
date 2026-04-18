@@ -34,7 +34,7 @@ PROMPTS_DIR = Path("prompts")
 
 
 def _model() -> str:
-    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7-highspeed")
 
 
 def _load_prompt(name: str) -> str:

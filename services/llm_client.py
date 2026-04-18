@@ -32,7 +32,7 @@ def _is_minimax() -> bool:
 
 def _get_model() -> str:
     """Get the model name from environment."""
-    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7-highspeed")
 
 
 class UnifiedLLMClient:
