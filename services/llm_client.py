@@ -63,7 +63,10 @@ class UnifiedLLMClient:
             self.http_client = httpx.Client(timeout=60.0)
         else:
             print(f"[LLM] Using Anthropic SDK with base_url={self.base_url}")
-            kwargs = {"api_key": self.api_key}
+            kwargs = {
+                "api_key": self.api_key,
+                "timeout": 90.0,  # 90 second timeout for API calls
+            }
             if self.base_url:
                 kwargs["base_url"] = self.base_url
             self.anthropic_client = anthropic.Anthropic(**kwargs)
@@ -112,7 +115,13 @@ class UnifiedLLMClient:
         if system:
             kwargs["system"] = system
 
-        response = self.anthropic_client.messages.create(**kwargs)
+        print(f"[LLM] Calling Anthropic API with model={model}, max_tokens={max_tokens}")
+        try:
+            response = self.anthropic_client.messages.create(**kwargs)
+            print(f"[LLM] Anthropic API call succeeded")
+        except Exception as e:
+            print(f"[LLM] Anthropic API call failed: {type(e).__name__}: {str(e)}")
+            raise
 
         # Convert Anthropic SDK response to dict
         # Handle both TextBlock and ThinkingBlock (MiniMax returns both)
