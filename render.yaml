@@ -4,12 +4,12 @@ services:
     runtime: docker
     plan: free
     envVars:
-      # LLM Configuration (Minimax or Anthropic-compatible API)
-      - key: ANTHROPIC_API_KEY
+      # LLM Configuration (MiniMax with Anthropic-compatible API)
+      - key: MINIMAX_API_KEY
         sync: false
-      - key: ANTHROPIC_BASE_URL
+      - key: MINIMAX_BASE_URL
         sync: false
-      - key: ANTHROPIC_MODEL
+      - key: MINIMAX_MODEL
         sync: false
       # Database (required)
       - key: SUPABASE_URL

@@ -1,14 +1,14 @@
 """
-Unified LLM client that works with both Anthropic and Minimax APIs.
+Unified LLM client that works with both Anthropic and MiniMax APIs.
 
-For Anthropic: Uses the official anthropic SDK
-For Minimax: Uses direct HTTP calls to Minimax API with proper formatting
+For MiniMax: Uses the official Anthropic SDK with MiniMax's Anthropic-compatible endpoint
+For Anthropic (legacy): Falls back to ANTHROPIC_* env vars if MINIMAX_* are not set
 
 Configuration via environment variables:
-- ANTHROPIC_API_KEY: Your API key (required for both)
-- ANTHROPIC_BASE_URL: Set to https://api.minimax.chat for Minimax (optional)
-- ANTHROPIC_MODEL: Model name (default: claude-sonnet-4-20250514)
-- LLM_PROVIDER: Set to "minimax" to use Minimax-specific formatting (optional, auto-detected from base_url)
+- MINIMAX_API_KEY: Your MiniMax API key (required, falls back to ANTHROPIC_API_KEY)
+- MINIMAX_BASE_URL: MiniMax base URL (default: https://api.minimax.io/anthropic)
+- MINIMAX_MODEL: Model name (default: MiniMax-M2.7)
+- LLM_PROVIDER: Set to "minimax_http" to use legacy Minimax HTTP API (optional, not recommended)
 """
 
 import os
@@ -32,7 +32,7 @@ def _is_minimax() -> bool:
 
 def _get_model() -> str:
     """Get the model name from environment."""
-    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
 
 
 class UnifiedLLMClient:
@@ -51,18 +51,19 @@ class UnifiedLLMClient:
 
     def __init__(self):
         self.is_minimax = _is_minimax()
-        self.api_key = os.environ.get("ANTHROPIC_API_KEY")
-        self.base_url = os.environ.get("ANTHROPIC_BASE_URL", "")
+        # Prefer MINIMAX_* env vars, fall back to ANTHROPIC_* for backwards compatibility
+        self.api_key = os.environ.get("MINIMAX_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        self.base_url = os.environ.get("MINIMAX_BASE_URL") or os.environ.get("ANTHROPIC_BASE_URL") or "https://api.minimax.io/anthropic"
 
         if not self.api_key:
-            raise EnvironmentError("ANTHROPIC_API_KEY environment variable is required")
+            raise EnvironmentError("MINIMAX_API_KEY (or ANTHROPIC_API_KEY) environment variable is required")
 
         if self.is_minimax:
-            print(f"[LLM] Using Minimax API at {self.base_url}")
+            print(f"[LLM] Using Minimax legacy HTTP API at {self.base_url}")
             self.http_client = httpx.Client(timeout=60.0)
         else:
-            print("[LLM] Using Anthropic SDK")
-            kwargs = {}
+            print(f"[LLM] Using Anthropic SDK with base_url={self.base_url}")
+            kwargs = {"api_key": self.api_key}
             if self.base_url:
                 kwargs["base_url"] = self.base_url
             self.anthropic_client = anthropic.Anthropic(**kwargs)

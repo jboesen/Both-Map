@@ -12,16 +12,19 @@ load_dotenv()
 def test_minimax():
     # Print environment config
     print("=== Environment Configuration ===")
-    print(f"ANTHROPIC_API_KEY: {'SET' if os.getenv('ANTHROPIC_API_KEY') else 'NOT SET'}")
-    print(f"ANTHROPIC_BASE_URL: {os.getenv('ANTHROPIC_BASE_URL', 'NOT SET')}")
-    print(f"ANTHROPIC_MODEL: {os.getenv('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514 (default)')}")
+    api_key = os.getenv('MINIMAX_API_KEY') or os.getenv('ANTHROPIC_API_KEY')
+    base_url = os.getenv('MINIMAX_BASE_URL') or os.getenv('ANTHROPIC_BASE_URL') or 'https://api.minimax.io/anthropic'
+    model = os.getenv('MINIMAX_MODEL') or os.getenv('ANTHROPIC_MODEL') or 'MiniMax-M2.7'
+
+    print(f"MINIMAX_API_KEY: {'SET' if api_key else 'NOT SET'}")
+    print(f"MINIMAX_BASE_URL: {base_url}")
+    print(f"MINIMAX_MODEL: {model}")
     print()
 
     # Try to create client
-    print("=== Creating Anthropic Client ===")
+    print("=== Creating MiniMax Client (via Anthropic SDK) ===")
     try:
-        kwargs = {}
-        base_url = os.environ.get("ANTHROPIC_BASE_URL")
+        kwargs = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
             print(f"Using base_url: {base_url}")
@@ -35,7 +38,6 @@ def test_minimax():
 
     # Try a simple API call
     print("\n=== Testing API Call ===")
-    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
     print(f"Using model: {model}")
 
     try:
