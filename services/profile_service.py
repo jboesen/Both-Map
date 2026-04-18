@@ -9,7 +9,7 @@ from services.llm_client import get_client
 
 
 def _model() -> str:
-    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
 
 PROMPTS_DIR = Path("prompts")
 
@@ -24,6 +24,14 @@ def _extract_json(text: str) -> str:
     if match:
         return match.group(1)
     return text
+
+
+def _extract_text_from_response(message: dict) -> str:
+    """Extract text from LLM response (handles MiniMax thinking blocks)."""
+    for block in message.get("content", []):
+        if block.get("type") == "text":
+            return block["text"]
+    raise ValueError(f"No text block found in response: {message.get('content', [])}")
 
 
 def build_profile_from_history(
@@ -53,7 +61,7 @@ def build_profile_from_history(
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message["content"][0]["text"]
+    raw = _extract_text_from_response(message)
     updates = json.loads(_extract_json(raw))
 
     profile = load_profile(user_id)
@@ -87,7 +95,7 @@ def update_profile_from_feedback(
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message["content"][0]["text"]
+    raw = _extract_text_from_response(message)
     result = json.loads(_extract_json(raw))
 
     changes_summary = result.get("changes_summary", "")
@@ -144,7 +152,7 @@ def enrich_profile_from_perplexity(user_id: str, perplexity_synthesis: str) -> d
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message["content"][0]["text"]
+    raw = _extract_text_from_response(message)
     extracted = json.loads(_extract_json(raw))
 
     existing_models = {m["model"] for m in profile.get("mental_models", [])}

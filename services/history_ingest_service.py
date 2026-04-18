@@ -35,7 +35,7 @@ PROMPTS_DIR = Path("prompts")
 
 
 def _model() -> str:
-    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
 
 FORMAT_DESCRIPTIONS = {
     "claude": "Claude.ai conversation history — JSON export or copy-pasted conversation text",
@@ -59,6 +59,14 @@ def _extract_json(text: str) -> str:
     if match:
         return match.group(1)
     return text
+
+
+def _extract_text_from_response(message: dict) -> str:
+    """Extract text from LLM response (handles MiniMax thinking blocks)."""
+    for block in message.get("content", []):
+        if block.get("type") == "text":
+            return block["text"]
+    raise ValueError(f"No text block found in response: {message.get('content', [])}")
 
 
 def _format_hint_description(format_hint: str | None) -> str:
@@ -106,7 +114,7 @@ def parse_and_extract(
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message["content"][0]["text"]
+    raw = _extract_text_from_response(message)
     return json.loads(_extract_json(raw))
 
 

@@ -55,7 +55,16 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
             messages=[{"role": "user", "content": prompt}],
         )
 
-        raw = message["content"][0]["text"]
+        # Extract text from response (MiniMax returns thinking + text blocks)
+        raw = None
+        for block in message["content"]:
+            if block.get("type") == "text":
+                raw = block["text"]
+                break
+
+        if not raw:
+            raise ValueError(f"No text block found in response: {message['content']}")
+
         candidates = json.loads(_extract_json(raw))
         return candidates
     except Exception as e:
@@ -92,7 +101,16 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
             messages=[{"role": "user", "content": prompt}],
         )
 
-        raw = message["content"][0]["text"]
+        # Extract text from response (MiniMax returns thinking + text blocks)
+        raw = None
+        for block in message["content"]:
+            if block.get("type") == "text":
+                raw = block["text"]
+                break
+
+        if not raw:
+            raise ValueError(f"No text block found in response: {message['content']}")
+
         scores = json.loads(_extract_json(raw))
         score_map = {s["topic"]: float(s["relevance_score"]) for s in scores}
     except Exception as e:

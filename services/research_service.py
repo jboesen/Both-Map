@@ -9,7 +9,7 @@ PROMPTS_DIR = Path("prompts")
 
 
 def _model() -> str:
-    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    return os.environ.get("MINIMAX_MODEL") or os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
 
 
 def _load_prompt(name: str) -> str:
@@ -22,6 +22,14 @@ def _extract_json(text: str) -> str:
     if match:
         return match.group(1)
     return text
+
+
+def _extract_text_from_response(message: dict) -> str:
+    """Extract text from LLM response (handles MiniMax thinking blocks)."""
+    for block in message.get("content", []):
+        if block.get("type") == "text":
+            return block["text"]
+    raise ValueError(f"No text block found in response: {message.get('content', [])}")
 
 
 def research_and_write(topic: str, profile: dict) -> dict:
@@ -68,7 +76,7 @@ def research_and_write(topic: str, profile: dict) -> dict:
         messages=[{"role": "user", "content": write_prompt}],
     )
 
-    write_text = write_message["content"][0]["text"]
+    write_text = _extract_text_from_response(write_message)
     post_data = json.loads(_extract_json(write_text))
 
     return {
