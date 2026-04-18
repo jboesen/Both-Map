@@ -115,10 +115,14 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
         if not raw:
             raise ValueError(f"No text block found in response: {message['content']}")
 
-        scores = json.loads(_extract_json(raw))
+        extracted = _extract_json(raw)
+        print(f"[DEBUG] rank_candidates extracted JSON (first 500 chars): {extracted[:500]}")
+        scores = json.loads(extracted)
         score_map = {s["topic"]: float(s["relevance_score"]) for s in scores}
     except Exception as e:
         print(f"[ERROR] rank_candidates Claude API call failed: {type(e).__name__}: {str(e)}")
+        if 'raw' in locals():
+            print(f"[ERROR] rank_candidates raw response (first 1000 chars): {raw[:1000]}")
         raise RuntimeError(f"Failed to rank candidates via Claude API: {str(e)}") from e
 
     try:
