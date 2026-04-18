@@ -56,6 +56,8 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
         )
 
         # Extract text from response (MiniMax returns thinking + text blocks)
+        print(f"[DEBUG] generate_candidates response blocks: {[b.get('type') for b in message.get('content', [])]}")
+
         raw = None
         for block in message["content"]:
             if block.get("type") == "text":
@@ -63,17 +65,24 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
                 break
 
         if not raw:
+            print(f"[ERROR] No text block found. Full content: {message['content']}")
             raise ValueError(f"No text block found in response: {message['content']}")
 
+        print(f"[DEBUG] generate_candidates raw text length: {len(raw)} chars")
         extracted = _extract_json(raw)
-        print(f"[DEBUG] Extracted JSON string (first 500 chars): {extracted[:500]}")
+        print(f"[DEBUG] generate_candidates extracted JSON length: {len(extracted)} chars")
+        print(f"[DEBUG] generate_candidates extracted JSON preview: {extracted[:300]}...")
+
         candidates = json.loads(extracted)
+        print(f"[DEBUG] generate_candidates parsed {len(candidates)} candidates")
         return candidates
     except Exception as e:
         print(f"[ERROR] generate_candidates failed: {type(e).__name__}: {str(e)}")
         print(f"[ERROR] Model: {_model()}")
-        if 'raw' in locals():
-            print(f"[ERROR] Raw response (first 1000 chars): {raw[:1000]}")
+        if 'raw' in locals() and raw:
+            print(f"[ERROR] Raw text (first 500 chars): {raw[:500]}")
+        if 'extracted' in locals() and extracted:
+            print(f"[ERROR] Extracted text (first 500 chars): {extracted[:500]}")
         raise RuntimeError(f"Failed to generate topic candidates via Claude API: {str(e)}") from e
 
 
@@ -106,6 +115,8 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
         )
 
         # Extract text from response (MiniMax returns thinking + text blocks)
+        print(f"[DEBUG] rank_candidates response blocks: {[b.get('type') for b in message.get('content', [])]}")
+
         raw = None
         for block in message["content"]:
             if block.get("type") == "text":
@@ -113,16 +124,23 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
                 break
 
         if not raw:
+            print(f"[ERROR] No text block found. Full content: {message['content']}")
             raise ValueError(f"No text block found in response: {message['content']}")
 
+        print(f"[DEBUG] rank_candidates raw text length: {len(raw)} chars")
         extracted = _extract_json(raw)
-        print(f"[DEBUG] rank_candidates extracted JSON (first 500 chars): {extracted[:500]}")
+        print(f"[DEBUG] rank_candidates extracted JSON length: {len(extracted)} chars")
+        print(f"[DEBUG] rank_candidates extracted JSON preview: {extracted[:300]}...")
+
         scores = json.loads(extracted)
+        print(f"[DEBUG] rank_candidates parsed {len(scores)} scores")
         score_map = {s["topic"]: float(s["relevance_score"]) for s in scores}
     except Exception as e:
         print(f"[ERROR] rank_candidates Claude API call failed: {type(e).__name__}: {str(e)}")
-        if 'raw' in locals():
-            print(f"[ERROR] rank_candidates raw response (first 1000 chars): {raw[:1000]}")
+        if 'raw' in locals() and raw:
+            print(f"[ERROR] Raw text (first 500 chars): {raw[:500]}")
+        if 'extracted' in locals() and extracted:
+            print(f"[ERROR] Extracted text (first 500 chars): {extracted[:500]}")
         raise RuntimeError(f"Failed to rank candidates via Claude API: {str(e)}") from e
 
     try:
