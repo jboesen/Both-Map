@@ -59,14 +59,24 @@ def generate_candidates(profile: dict, n: int = 20) -> list[dict]:
         print(f"[DEBUG] generate_candidates response blocks: {[b.get('type') for b in message.get('content', [])]}")
 
         raw = None
+        text_block = None
+        thinking_block = None
+
         for block in message["content"]:
             if block.get("type") == "text":
-                raw = block["text"]
-                break
+                text_block = block["text"]
+            elif block.get("type") == "thinking":
+                thinking_block = block["thinking"]
+
+        # Prefer text block, fallback to thinking if no text
+        raw = text_block or thinking_block
 
         if not raw:
-            print(f"[ERROR] No text block found. Full content: {message['content']}")
-            raise ValueError(f"No text block found in response: {message['content']}")
+            print(f"[ERROR] No text OR thinking block found. Full content: {message['content']}")
+            raise ValueError(f"No content found in response: {message['content']}")
+
+        if not text_block and thinking_block:
+            print(f"[WARNING] No text block, using thinking block as fallback ({len(thinking_block)} chars)")
 
         print(f"[DEBUG] generate_candidates raw text length: {len(raw)} chars")
         extracted = _extract_json(raw)
@@ -118,14 +128,24 @@ def rank_candidates(candidates: list[dict], profile: dict, user_id: str = "") ->
         print(f"[DEBUG] rank_candidates response blocks: {[b.get('type') for b in message.get('content', [])]}")
 
         raw = None
+        text_block = None
+        thinking_block = None
+
         for block in message["content"]:
             if block.get("type") == "text":
-                raw = block["text"]
-                break
+                text_block = block["text"]
+            elif block.get("type") == "thinking":
+                thinking_block = block["thinking"]
+
+        # Prefer text block, fallback to thinking if no text
+        raw = text_block or thinking_block
 
         if not raw:
-            print(f"[ERROR] No text block found. Full content: {message['content']}")
-            raise ValueError(f"No text block found in response: {message['content']}")
+            print(f"[ERROR] No text OR thinking block found. Full content: {message['content']}")
+            raise ValueError(f"No content found in response: {message['content']}")
+
+        if not text_block and thinking_block:
+            print(f"[WARNING] No text block, using thinking block as fallback ({len(thinking_block)} chars)")
 
         print(f"[DEBUG] rank_candidates raw text length: {len(raw)} chars")
         extracted = _extract_json(raw)
