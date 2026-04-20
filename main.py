@@ -219,6 +219,19 @@ def topics(user_id: str = "default", use_mock: bool = False):
 
         profile = load_profile(user_id)
         logger.info(f"Profile loaded: {len(profile.get('topics', {}).get('interests', []))} interests")
+
+        # Don't generate topics if profile is empty - nothing to base suggestions on
+        has_interests = len(profile.get('topics', {}).get('interests', [])) > 0
+        has_models = len(profile.get('mental_models', [])) > 0
+        has_history = len(profile.get('topics', {}).get('covered', [])) > 0
+
+        if not (has_interests or has_models or has_history):
+            logger.warning("Profile is empty - cannot generate personalized topics")
+            raise HTTPException(
+                status_code=400,
+                detail="Profile is empty. Please complete onboarding first by calling POST /onboard with your Substack URL."
+            )
+
         selection = select_topic(user_id, profile)
         logger.info(f"Topic selection complete: {len(selection.get('ranked', []))} candidates")
         return {"candidates": selection["ranked"], "top": selection["top"]}
